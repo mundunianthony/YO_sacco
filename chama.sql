@@ -47,7 +47,8 @@ CREATE TABLE `admin` (
 --
 
 INSERT INTO `admin` (`id`, `fname`, `lname`, `address`, `profilepic`, `contact`, `dob`, `username`, `email`, `password`, `creationdate`, `updationdate`) VALUES
-(1, 'admin', 'admin', 'my address', 'istockphoto-77931645-170667a.jpg', '712345678', '', 'admin', 'admin@gmail.com', 'ffc6c627e5533458e860427ec2e54ad1', '2019-11-14 17:36:19', '2023-01-08 11:04:23');
+(1, 'admin', 'admin', 'my address', 'istockphoto-77931645-170667a.jpg', '712345678', '', 'admin', 'admin@gmail.com', 'ffc6c627e5533458e860427ec2e54ad1', '2019-11-14 17:36:19', '2023-01-08 11:04:23'),
+(2, 'Super', 'Admin', 'Office Address', 'default.jpg', '723456789', '1990-01-01', 'superadmin', 'superadmin@gmail.com', MD5('Admin123'), CURRENT_TIMESTAMP, NULL);
 
 -- --------------------------------------------------------
 
@@ -315,7 +316,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `admin`
 --
 ALTER TABLE `admin`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `credit`
