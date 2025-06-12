@@ -1,0 +1,205 @@
+
+YO SACCO MANAGEMENT SYSTEM - DATA MODELS
+========================================
+
+1. USER MODEL (Base Interface)
+   - id: string
+   - name: string
+   - email: string
+   - phone: string
+   - password: string (hashed)
+   - role: 'admin' | 'member'
+   - status: 'active' | 'inactive'
+   - createdAt: Date
+   - updatedAt: Date
+
+2. MEMBER MODEL (extends User)
+   - role: 'member'
+   - address: string
+   - dateOfBirth: Date
+   - savingsBalance: number
+   - joinDate: Date
+   - nationalId?: string (optional)
+   - emergencyContact?: object (optional)
+     - name: string
+     - phone: string
+     - relationship: string
+
+3. ADMIN MODEL (extends User)
+   - role: 'admin'
+   - permissions: AdminPermission[]
+   - department?: string (optional)
+
+4. ADMIN PERMISSIONS (Type)
+   - 'manage_members'
+   - 'approve_loans'
+   - 'view_reports'
+   - 'send_notifications'
+   - 'manage_savings'
+
+5. LOAN MODEL
+   - id: string
+   - memberId: string
+   - loanType: LoanType
+   - amountRequested: number
+   - amountApproved?: number (optional)
+   - repaymentPeriod: number (in months)
+   - interestRate: number (percentage)
+   - status: LoanStatus
+   - applicationDate: Date
+   - approvalDate?: Date (optional)
+   - rejectionReason?: string (optional)
+   - approvedBy?: string (admin ID, optional)
+   - totalRepayable?: number (optional)
+   - monthlyRepayment?: number (optional)
+   - repaymentHistory: LoanRepayment[]
+   - remainingBalance: number
+   - nextPaymentDate?: Date (optional)
+   - collateral?: string (optional)
+   - purpose: string
+
+6. LOAN TYPES (Type)
+   - 'personal'
+   - 'emergency'
+   - 'business'
+   - 'education'
+   - 'housing'
+
+7. LOAN STATUS (Type)
+   - 'pending'
+   - 'approved'
+   - 'rejected'
+   - 'active'
+   - 'completed'
+   - 'defaulted'
+
+8. LOAN REPAYMENT MODEL
+   - id: string
+   - loanId: string
+   - memberId: string
+   - amountPaid: number
+   - paymentDate: Date
+   - paymentMethod: PaymentMethod
+   - remainingBalance: number
+   - penaltyAmount?: number (optional)
+   - receiptNumber: string
+   - processedBy?: string (admin ID, optional)
+
+9. PAYMENT METHODS (Type)
+   - 'cash'
+   - 'bank_transfer'
+   - 'mobile_money'
+   - 'check'
+
+10. SAVINGS TRANSACTION MODEL
+    - id: string
+    - memberId: string
+    - transactionType: TransactionType
+    - amount: number
+    - date: Date
+    - balanceBefore: number
+    - balanceAfter: number
+    - description?: string (optional)
+    - reference?: string (optional)
+    - processedBy?: string (admin ID for withdrawals, optional)
+    - status: TransactionStatus
+
+11. TRANSACTION TYPES (Type)
+    - 'deposit'
+    - 'withdrawal'
+
+12. TRANSACTION STATUS (Type)
+    - 'pending'
+    - 'completed'
+    - 'failed'
+
+13. NOTIFICATION MODEL
+    - id: string
+    - type: NotificationType
+    - recipientId: string (member or admin ID)
+    - recipientType: 'member' | 'admin'
+    - title: string
+    - message: string
+    - date: Date
+    - readStatus: boolean
+    - actionRequired?: boolean (optional)
+    - relatedEntityId?: string (loan ID, transaction ID, etc., optional)
+    - priority: NotificationPriority
+
+14. NOTIFICATION TYPES (Type)
+    - 'loan_application'
+    - 'loan_approved'
+    - 'loan_rejected'
+    - 'payment_reminder'
+    - 'payment_overdue'
+    - 'account_status'
+    - 'system_announcement'
+    - 'savings_milestone'
+
+15. NOTIFICATION PRIORITY (Type)
+    - 'low'
+    - 'medium'
+    - 'high'
+    - 'urgent'
+
+16. MEMBER DASHBOARD STATS MODEL
+    - memberId: string
+    - totalSavings: number
+    - activeLoanCount: number
+    - totalLoanAmount: number
+    - remainingLoanBalance: number
+    - nextPaymentAmount?: number (optional)
+    - nextPaymentDate?: Date (optional)
+    - savingsGrowth: number (percentage)
+    - creditScore?: number (optional)
+
+17. ADMIN DASHBOARD STATS MODEL
+    - totalMembers: number
+    - activeMembers: number
+    - totalSavings: number
+    - totalLoansIssued: number
+    - totalLoanAmount: number
+    - pendingLoanApplications: number
+    - defaultedLoans: number
+    - collectionRate: number (percentage)
+    - monthlyGrowth: object
+      - members: number
+      - savings: number
+      - loans: number
+
+18. SACCO SETTINGS MODEL
+    - id: string
+    - saccoName: string
+    - registrationNumber: string
+    - address: string
+    - phone: string
+    - email: string
+    - interestRates: object (LoanType -> period -> rate mapping)
+    - minimumSavings: number
+    - maximumLoanAmount: number
+    - penaltyRate: number (percentage for late payments)
+    - gracePeriod: number (days before penalty applies)
+    - operatingHours: object
+      - open: string
+      - close: string
+      - workingDays: string[]
+
+19. AUDIT LOG MODEL
+    - id: string
+    - userId: string
+    - userType: 'admin' | 'member'
+    - action: string
+    - entityType: string ('loan', 'member', 'transaction', etc.)
+    - entityId: string
+    - changes?: Record<string, any> (optional)
+    - timestamp: Date
+    - ipAddress?: string (optional)
+    - userAgent?: string (optional)
+
+NOTES:
+- Optional fields are marked with "?" or "(optional)"
+- All Date fields should be JavaScript Date objects
+- String enums define allowed values for specific fields
+- Models with "extends" inherit all properties from the base model
+- Arrays are denoted with "[]" suffix
+- Complex nested objects show their structure indented
