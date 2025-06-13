@@ -1,46 +1,75 @@
-
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { adminApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface Member {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  savingsBalance: number;
+  status: string;
+  memberId: string;
+  createdAt: string;
+}
 
 const AdminMembers = () => {
-  // Mock data for members
-  const members = [
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "+1234567890",
-      totalSavings: 5000,
-      status: "active",
-      joinDate: "2024-01-15"
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      email: "jane@example.com",
-      phone: "+1234567891",
-      totalSavings: 7500,
-      status: "active",
-      joinDate: "2024-02-20"
-    },
-    {
-      id: 3,
-      name: "Bob Johnson",
-      email: "bob@example.com",
-      phone: "+1234567892",
-      totalSavings: 3200,
-      status: "inactive",
-      joinDate: "2024-03-10"
-    },
-  ];
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const handleToggleStatus = (memberId: number) => {
-    console.log(`Toggle status for member ${memberId}`);
-    // Logic to toggle member status
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
+  const fetchMembers = async () => {
+    try {
+      const response = await adminApi.getUsers();
+      setMembers(response.data.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load members",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleToggleStatus = async (memberId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      await adminApi.updateUserStatus(memberId, { status: newStatus });
+      toast({
+        title: "Success",
+        description: `Member ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`,
+      });
+      fetchMembers();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update member status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -63,6 +92,7 @@ const AdminMembers = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Member ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
@@ -74,22 +104,23 @@ const AdminMembers = () => {
               </TableHeader>
               <TableBody>
                 {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.name}</TableCell>
+                  <TableRow key={member._id}>
+                    <TableCell className="font-medium">{member.memberId}</TableCell>
+                    <TableCell>{member.firstName} {member.lastName}</TableCell>
                     <TableCell>{member.email}</TableCell>
-                    <TableCell>{member.phone}</TableCell>
-                    <TableCell>${member.totalSavings.toLocaleString()}</TableCell>
+                    <TableCell>{member.phoneNumber}</TableCell>
+                    <TableCell>${member.savingsBalance.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant={member.status === "active" ? "default" : "secondary"}>
                         {member.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{member.joinDate}</TableCell>
+                    <TableCell>{new Date(member.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleToggleStatus(member.id)}
+                        onClick={() => handleToggleStatus(member._id, member.status)}
                       >
                         {member.status === "active" ? "Deactivate" : "Activate"}
                       </Button>

@@ -1,4 +1,3 @@
-
 import { Home, Users, DollarSign, CreditCard, Bell, User } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
@@ -29,6 +28,7 @@ export function AppSidebar() {
     { title: "Dashboard", url: "/member-dashboard", icon: Home },
     { title: "Savings", url: "/member/savings", icon: DollarSign },
     { title: "Loans", url: "/member/loans", icon: CreditCard },
+    { title: "Notifications", url: "/member/notifications", icon: Bell },
     { title: "Profile", url: "/member/profile", icon: User },
   ];
 

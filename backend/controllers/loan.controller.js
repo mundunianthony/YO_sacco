@@ -56,15 +56,59 @@ exports.applyForLoan = async (req, res) => {
     // Populate user details for notification
     await loan.populate('user', 'firstName lastName');
 
-    // Create notification for admin
-    await NotificationService.createNotification({
-      type: 'loan_application',
-      message: `New loan application from ${loan.user.firstName} ${loan.user.lastName} for $${amount}`,
-      user: req.user.id,
-      relatedTo: loan._id,
-      onModel: 'Loan',
-      priority: 'high'
-    });
+    // Get admin user
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (!adminUser) {
+      console.error('No admin user found for notification');
+    }
+
+    // Create loan application notification
+    console.log('Creating loan application notification...');
+    try {
+      const notification = await NotificationService.createNotification({
+        type: 'loan_application',
+        message: `Your loan application for $${amount} has been received and is pending approval. We will notify you once it's reviewed.`,
+        user: req.user.id,
+        relatedTo: loan._id,
+        onModel: 'Loan',
+        priority: 'high'
+      });
+      console.log('Notification created successfully:', {
+        id: notification._id,
+        type: notification.type,
+        message: notification.message,
+        user: notification.user
+      });
+    } catch (notificationError) {
+      console.error('Error creating loan application notification:', {
+        message: notificationError.message,
+        stack: notificationError.stack,
+        code: notificationError.code,
+        name: notificationError.name
+      });
+      // Continue with the response even if notification fails
+    }
+
+    // Create notification for admin if admin user exists
+    if (adminUser) {
+      try {
+        await NotificationService.createNotification({
+          type: 'loan_application',
+          message: `New loan application from ${loan.user.firstName} ${loan.user.lastName} for $${amount}`,
+          user: adminUser._id,
+          relatedTo: loan._id,
+          onModel: 'Loan',
+          priority: 'high'
+        });
+      } catch (notificationError) {
+        console.error('Error creating admin notification:', {
+          error: notificationError.message,
+          stack: notificationError.stack,
+          code: notificationError.code
+        });
+        // Continue with loan creation even if notification fails
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -250,15 +294,32 @@ exports.makeLoanPayment = async (req, res) => {
 
     await loan.save();
 
-    // Create payment notification
-    await NotificationService.createNotification({
-      type: 'loan_payment',
-      message: `Payment of $${amount} received for loan #${loan.loanNumber}`,
-      user: loan.user,
-      relatedTo: loan._id,
-      onModel: 'Loan',
-      priority: 'medium'
-    });
+    // Create loan payment notification
+    console.log('Creating loan payment notification...');
+    try {
+      const notification = await NotificationService.createNotification({
+        type: 'loan_payment',
+        message: `Your loan payment of $${amount} has been received and is being processed. We will notify you once it's confirmed.`,
+        user: req.user.id,
+        relatedTo: loan._id,
+        onModel: 'Loan',
+        priority: 'medium'
+      });
+      console.log('Notification created successfully:', {
+        id: notification._id,
+        type: notification.type,
+        message: notification.message,
+        user: notification.user
+      });
+    } catch (notificationError) {
+      console.error('Error creating loan payment notification:', {
+        message: notificationError.message,
+        stack: notificationError.stack,
+        code: notificationError.code,
+        name: notificationError.name
+      });
+      // Continue with the response even if notification fails
+    }
 
     res.status(200).json({
       success: true,

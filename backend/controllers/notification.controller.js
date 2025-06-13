@@ -6,7 +6,13 @@ const { validationResult } = require('express-validator');
 // @access  Private
 exports.getNotifications = async (req, res) => {
   try {
-    console.log('Fetching notifications for user:', req.user.id);
+    console.log('=== GET NOTIFICATIONS REQUEST ===');
+    console.log('User ID:', req.user.id);
+    console.log('User object:', {
+      id: req.user.id,
+      role: req.user.role,
+      email: req.user.email
+    });
     
     const notifications = await Notification.find({ user: req.user.id })
       .sort({ createdAt: -1 })
@@ -14,7 +20,15 @@ exports.getNotifications = async (req, res) => {
     
     console.log('Found notifications:', notifications.length);
     if (notifications.length > 0) {
-      console.log('First notification:', notifications[0]);
+      console.log('First notification:', {
+        id: notifications[0]._id,
+        type: notifications[0].type,
+        message: notifications[0].message,
+        read: notifications[0].read,
+        createdAt: notifications[0].createdAt
+      });
+    } else {
+      console.log('No notifications found for user');
     }
 
     // Set cache control headers
@@ -28,7 +42,11 @@ exports.getNotifications = async (req, res) => {
       data: notifications
     });
   } catch (err) {
-    console.error('Error fetching notifications:', err);
+    console.error('Error fetching notifications:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
     res.status(500).json({
       success: false,
       error: err.message || 'Server error'
@@ -41,27 +59,45 @@ exports.getNotifications = async (req, res) => {
 // @access  Private
 exports.markAsRead = async (req, res) => {
   try {
+    console.log('=== MARK AS READ REQUEST ===');
+    console.log('Notification ID:', req.params.id);
+    console.log('User ID:', req.user.id);
+
     const notification = await Notification.findOne({
       _id: req.params.id,
       user: req.user.id
     });
 
     if (!notification) {
+      console.log('Notification not found or does not belong to user');
       return res.status(404).json({
         success: false,
         error: 'Notification not found'
       });
     }
 
+    console.log('Found notification:', {
+      id: notification._id,
+      type: notification.type,
+      message: notification.message,
+      read: notification.read
+    });
+
     notification.read = true;
     await notification.save();
+
+    console.log('Notification marked as read successfully');
 
     res.status(200).json({
       success: true,
       data: notification
     });
   } catch (err) {
-    console.error('Error marking notification as read:', err);
+    console.error('Error marking notification as read:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
     res.status(500).json({
       success: false,
       error: err.message || 'Server error'
@@ -74,17 +110,29 @@ exports.markAsRead = async (req, res) => {
 // @access  Private
 exports.markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany(
+    console.log('=== MARK ALL AS READ REQUEST ===');
+    console.log('User ID:', req.user.id);
+
+    const result = await Notification.updateMany(
       { user: req.user.id, read: false },
       { read: true }
     );
+
+    console.log('Update result:', {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount
+    });
 
     res.status(200).json({
       success: true,
       message: 'All notifications marked as read'
     });
   } catch (err) {
-    console.error('Error marking all notifications as read:', err);
+    console.error('Error marking all notifications as read:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
     res.status(500).json({
       success: false,
       error: err.message || 'Server error'
@@ -97,10 +145,15 @@ exports.markAllAsRead = async (req, res) => {
 // @access  Private
 exports.getUnreadCount = async (req, res) => {
   try {
+    console.log('=== GET UNREAD COUNT REQUEST ===');
+    console.log('User ID:', req.user.id);
+
     const count = await Notification.countDocuments({
       user: req.user.id,
       read: false
     });
+
+    console.log('Unread count:', count);
 
     // Set cache control headers
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -113,7 +166,11 @@ exports.getUnreadCount = async (req, res) => {
       data: { count }
     });
   } catch (err) {
-    console.error('Error getting unread count:', err);
+    console.error('Error getting unread count:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
     res.status(500).json({
       success: false,
       error: err.message || 'Server error'

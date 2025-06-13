@@ -1,55 +1,105 @@
-
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { adminApi } from "@/lib/api";
+
+interface Loan {
+  _id: string;
+  loanNumber: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    memberId: string;
+  };
+  amount: number;
+  purpose: string;
+  status: string;
+  term: number;
+  remainingBalance: number;
+  nextPaymentDate: string;
+  createdAt: string;
+}
 
 const AdminLoans = () => {
-  // Mock data for loan applications
-  const pendingLoans = [
-    {
-      id: 1,
-      memberName: "John Doe",
-      loanType: "Personal",
-      amountRequested: 5000,
-      repaymentPeriod: 6,
-      dateApplied: "2024-06-10",
-      status: "pending"
-    },
-    {
-      id: 2,
-      memberName: "Jane Smith",
-      loanType: "Business",
-      amountRequested: 10000,
-      repaymentPeriod: 12,
-      dateApplied: "2024-06-11",
-      status: "pending"
-    },
-  ];
+  const [pendingLoans, setPendingLoans] = useState<Loan[]>([]);
+  const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const activeLoans = [
-    {
-      id: 3,
-      memberName: "Bob Johnson",
-      loanType: "Emergency",
-      amount: 3000,
-      remainingBalance: 1500,
-      nextPaymentDate: "2024-07-15",
-      status: "active"
-    },
-  ];
+  useEffect(() => {
+    fetchLoans();
+  }, []);
 
-  const handleApproveLoan = (loanId: number) => {
-    console.log(`Approve loan ${loanId}`);
-    // Logic to approve loan
+  const fetchLoans = async () => {
+    try {
+      const response = await adminApi.getLoans();
+      const loans = response.data.data;
+      
+      setPendingLoans(loans.filter((loan: Loan) => loan.status === 'pending'));
+      setActiveLoans(loans.filter((loan: Loan) => loan.status === 'active'));
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load loans",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRejectLoan = (loanId: number) => {
-    console.log(`Reject loan ${loanId}`);
-    // Logic to reject loan
+  const handleApproveLoan = async (loanId: string) => {
+    try {
+      await adminApi.updateLoanStatus(loanId, { status: 'approved' });
+      toast({
+        title: "Success",
+        description: "Loan approved successfully",
+      });
+      fetchLoans();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve loan",
+        variant: "destructive",
+      });
+    }
   };
+
+  const handleRejectLoan = async (loanId: string) => {
+    try {
+      await adminApi.updateLoanStatus(loanId, { 
+        status: 'rejected',
+        rejectionReason: 'Application rejected by admin'
+      });
+      toast({
+        title: "Success",
+        description: "Loan rejected successfully",
+      });
+      fetchLoans();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reject loan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -57,58 +107,69 @@ const AdminLoans = () => {
         <div>
           <h1 className="text-3xl font-bold">Loan Management</h1>
           <p className="text-muted-foreground">
-            Manage loan applications and active loans
+            Review and manage loan applications
           </p>
         </div>
 
-        <Tabs defaultValue="pending" className="w-full">
+        <Tabs defaultValue="pending" className="space-y-4">
           <TabsList>
             <TabsTrigger value="pending">Pending Applications</TabsTrigger>
             <TabsTrigger value="active">Active Loans</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="pending">
             <Card>
               <CardHeader>
-                <CardTitle>Pending Loan Applications</CardTitle>
+                <CardTitle>Pending Applications</CardTitle>
                 <CardDescription>
-                  Review and approve or reject loan applications
+                  Review and process loan applications
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Member Name</TableHead>
-                      <TableHead>Loan Type</TableHead>
-                      <TableHead>Amount Requested</TableHead>
-                      <TableHead>Repayment Period</TableHead>
+                      <TableHead>Member</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Purpose</TableHead>
+                      <TableHead>Term</TableHead>
                       <TableHead>Date Applied</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pendingLoans.map((loan) => (
-                      <TableRow key={loan.id}>
-                        <TableCell className="font-medium">{loan.memberName}</TableCell>
-                        <TableCell>{loan.loanType}</TableCell>
-                        <TableCell>${loan.amountRequested.toLocaleString()}</TableCell>
-                        <TableCell>{loan.repaymentPeriod} months</TableCell>
-                        <TableCell>{loan.dateApplied}</TableCell>
-                        <TableCell className="space-x-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveLoan(loan.id)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleRejectLoan(loan.id)}
-                          >
-                            Reject
-                          </Button>
+                      <TableRow key={loan._id}>
+                        <TableCell className="font-medium">
+                          {loan.user.firstName} {loan.user.lastName}
+                        </TableCell>
+                        <TableCell>${loan.amount.toLocaleString()}</TableCell>
+                        <TableCell>{loan.purpose}</TableCell>
+                        <TableCell>{loan.term} months</TableCell>
+                        <TableCell>
+                          {new Date(loan.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{loan.status}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleApproveLoan(loan._id)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRejectLoan(loan._id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -130,8 +191,7 @@ const AdminLoans = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Member Name</TableHead>
-                      <TableHead>Loan Type</TableHead>
+                      <TableHead>Member</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Remaining Balance</TableHead>
                       <TableHead>Next Payment Date</TableHead>
@@ -140,12 +200,17 @@ const AdminLoans = () => {
                   </TableHeader>
                   <TableBody>
                     {activeLoans.map((loan) => (
-                      <TableRow key={loan.id}>
-                        <TableCell className="font-medium">{loan.memberName}</TableCell>
-                        <TableCell>{loan.loanType}</TableCell>
+                      <TableRow key={loan._id}>
+                        <TableCell className="font-medium">
+                          {loan.user.firstName} {loan.user.lastName}
+                        </TableCell>
                         <TableCell>${loan.amount.toLocaleString()}</TableCell>
                         <TableCell>${loan.remainingBalance.toLocaleString()}</TableCell>
-                        <TableCell>{loan.nextPaymentDate}</TableCell>
+                        <TableCell>
+                          {loan.nextPaymentDate
+                            ? new Date(loan.nextPaymentDate).toLocaleDateString()
+                            : 'N/A'}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="default">{loan.status}</Badge>
                         </TableCell>

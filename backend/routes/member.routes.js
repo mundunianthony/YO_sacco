@@ -4,6 +4,7 @@ const { check, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Loan = require('../models/Loan');
 const Transaction = require('../models/Transaction');
+const savingsController = require('../controllers/savings.controller');
 
 const router = express.Router();
 
@@ -179,106 +180,12 @@ router.get('/savings', authenticate, async (req, res) => {
 // @desc    Make a deposit
 // @route   POST /api/members/savings/deposit
 // @access  Private
-router.post('/savings/deposit', authenticate, async (req, res) => {
-  try {
-    const { amount, paymentMethod } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid amount'
-      });
-    }
-
-    const user = await User.findById(req.user.id);
-    const newBalance = user.savingsBalance + amount;
-
-    // Create transaction
-    const transaction = await Transaction.create({
-      user: req.user.id,
-      type: 'deposit',
-      amount,
-      description: 'Savings deposit',
-      status: 'completed',
-      category: 'savings',
-      paymentMethod,
-      balanceAfter: newBalance
-    });
-
-    // Update user balance
-    user.savingsBalance = newBalance;
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        transaction,
-        newBalance
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Server Error'
-    });
-  }
-});
+router.post('/savings/deposit', authenticate, savingsController.makeDeposit);
 
 // @desc    Request withdrawal
 // @route   POST /api/members/savings/withdraw
 // @access  Private
-router.post('/savings/withdraw', authenticate, async (req, res) => {
-  try {
-    const { amount, paymentMethod } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid amount'
-      });
-    }
-
-    const user = await User.findById(req.user.id);
-
-    if (amount > user.savingsBalance) {
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient funds'
-      });
-    }
-
-    const newBalance = user.savingsBalance - amount;
-
-    // Create transaction
-    const transaction = await Transaction.create({
-      user: req.user.id,
-      type: 'withdrawal',
-      amount,
-      description: 'Savings withdrawal',
-      status: 'pending',
-      category: 'savings',
-      paymentMethod,
-      balanceAfter: newBalance
-    });
-
-    // Update user balance
-    user.savingsBalance = newBalance;
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        transaction,
-        newBalance
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Server Error'
-    });
-  }
-});
+router.post('/savings/withdraw', authenticate, savingsController.makeWithdrawal);
 
 // @desc    Get member loans
 // @route   GET /api/members/loans

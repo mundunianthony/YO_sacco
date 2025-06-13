@@ -1,34 +1,123 @@
-
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, DollarSign, CreditCard, TrendingUp } from "lucide-react";
+import { adminApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface DashboardData {
+  users: {
+    total: number;
+    active: number;
+  };
+  loans: {
+    total: number;
+    pending: number;
+    active: number;
+    totalAmount: number;
+  };
+  savings: {
+    total: number;
+    monthlyGrowth: number;
+  };
+  recentLoans: Array<{
+    _id: string;
+    user: {
+      firstName: string;
+      lastName: string;
+    };
+    amount: number;
+    purpose: string;
+    status: string;
+    createdAt: string;
+  }>;
+  recentTransactions: Array<{
+    _id: string;
+    user: {
+      firstName: string;
+      lastName: string;
+    };
+    type: string;
+    amount: number;
+    createdAt: string;
+  }>;
+}
 
 const AdminDashboard = () => {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const response = await adminApi.getDashboard();
+      console.log('Dashboard Response:', response.data);
+      if (response.data.success && response.data.data) {
+        setDashboardData(response.data.data);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Dashboard Error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <p className="text-muted-foreground">No data available</p>
+        </div>
+      </Layout>
+    );
+  }
+
   const stats = [
     {
       title: "Total Members",
-      value: "1,234",
-      description: "+12% from last month",
+      value: dashboardData.users?.total?.toLocaleString() ?? '0',
+      description: `${dashboardData.users?.active ?? 0} active members`,
       icon: Users,
       color: "text-blue-600",
     },
     {
       title: "Total Savings",
-      value: "$2,456,789",
-      description: "+8% from last month",
+      value: `$${dashboardData.savings?.total?.toLocaleString() ?? '0'}`,
+      description: `${(dashboardData.savings?.monthlyGrowth ?? 0) > 0 ? '+' : ''}${dashboardData.savings?.monthlyGrowth ?? 0}% from last month`,
       icon: DollarSign,
       color: "text-green-600",
     },
     {
       title: "Active Loans",
-      value: "156",
-      description: "Total: $890,123",
+      value: dashboardData.loans?.active?.toLocaleString() ?? '0',
+      description: `Total: $${dashboardData.loans?.totalAmount?.toLocaleString() ?? '0'}`,
       icon: CreditCard,
       color: "text-orange-600",
     },
     {
       title: "Growth Rate",
-      value: "15.2%",
+      value: `${(dashboardData.savings?.monthlyGrowth ?? 0) > 0 ? '+' : ''}${dashboardData.savings?.monthlyGrowth ?? 0}%`,
       description: "Monthly growth",
       icon: TrendingUp,
       color: "text-purple-600",
@@ -74,19 +163,19 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { name: "John Doe", amount: "$5,000", type: "Personal", date: "2024-06-12" },
-                  { name: "Jane Smith", amount: "$10,000", type: "Business", date: "2024-06-11" },
-                  { name: "Bob Johnson", amount: "$3,000", type: "Emergency", date: "2024-06-10" },
-                ].map((loan, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                {dashboardData.recentLoans?.map((loan) => (
+                  <div key={loan._id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
-                      <p className="font-medium">{loan.name}</p>
-                      <p className="text-sm text-muted-foreground">{loan.type} - {loan.date}</p>
+                      <p className="font-medium">
+                        {loan.user.firstName} {loan.user.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {loan.purpose} - {new Date(loan.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">{loan.amount}</p>
-                      <p className="text-sm text-orange-600">Pending</p>
+                      <p className="font-semibold">${loan.amount.toLocaleString()}</p>
+                      <p className="text-sm text-orange-600">{loan.status}</p>
                     </div>
                   </div>
                 ))}
@@ -103,18 +192,18 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { name: "Alice Brown", action: "Deposit", amount: "$500", date: "2024-06-12" },
-                  { name: "Charlie Wilson", action: "Withdrawal", amount: "$200", date: "2024-06-11" },
-                  { name: "Diana Davis", action: "Loan Payment", amount: "$300", date: "2024-06-10" },
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                {dashboardData.recentTransactions?.map((transaction) => (
+                  <div key={transaction._id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
-                      <p className="font-medium">{activity.name}</p>
-                      <p className="text-sm text-muted-foreground">{activity.action} - {activity.date}</p>
+                      <p className="font-medium">
+                        {transaction.user.firstName} {transaction.user.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {transaction.type} - {new Date(transaction.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">{activity.amount}</p>
+                      <p className="font-semibold">${transaction.amount.toLocaleString()}</p>
                     </div>
                   </div>
                 ))}

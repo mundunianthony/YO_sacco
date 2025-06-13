@@ -1,43 +1,96 @@
-
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DollarSign, CreditCard, PiggyBank, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { memberApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface DashboardData {
+  savingsBalance: number;
+  loanBalance: number;
+  totalLoanAmount: number;
+  interestEarned: number;
+  nextPayment: number;
+  nextPaymentDate: string;
+  recentTransactions: Array<{
+    _id: string;
+    type: string;
+    amount: number;
+    createdAt: string;
+    description: string;
+  }>;
+  activeLoans: number;
+}
 
 const MemberDashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await memberApi.getDashboard();
+        setDashboardData(response.data.data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [toast]);
 
   const stats = [
     {
       title: "Total Savings",
-      value: "$12,456",
-      description: "+$500 this month",
+      value: `$${dashboardData?.savingsBalance.toLocaleString() ?? '0'}`,
+      description: "Available balance",
       icon: PiggyBank,
       color: "text-green-600",
     },
     {
       title: "Active Loans",
-      value: "2",
-      description: "Total: $8,500",
+      value: dashboardData?.activeLoans.toString() ?? '0',
+      description: `Total: $${dashboardData?.totalLoanAmount.toLocaleString() ?? '0'}`,
       icon: CreditCard,
       color: "text-blue-600",
     },
     {
       title: "Interest Earned",
-      value: "$234",
+      value: `$${dashboardData?.interestEarned.toLocaleString() ?? '0'}`,
       description: "This year",
       icon: TrendingUp,
       color: "text-purple-600",
     },
     {
       title: "Next Payment",
-      value: "$425",
-      description: "Due June 20",
+      value: `$${dashboardData?.nextPayment.toLocaleString() ?? '0'}`,
+      description: dashboardData?.nextPaymentDate 
+        ? `Due ${new Date(dashboardData.nextPaymentDate).toLocaleDateString()}`
+        : "No upcoming payments",
       icon: DollarSign,
       color: "text-orange-600",
     },
   ];
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -113,21 +166,23 @@ const MemberDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { type: "Deposit", amount: "+$500", date: "2024-06-12", balance: "$12,456" },
-                  { type: "Loan Payment", amount: "-$425", date: "2024-06-05", balance: "$11,956" },
-                  { type: "Deposit", amount: "+$300", date: "2024-05-28", balance: "$12,381" },
-                ].map((transaction, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                {dashboardData?.recentTransactions.map((transaction) => (
+                  <div key={transaction._id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
                       <p className="font-medium">{transaction.type}</p>
-                      <p className="text-sm text-muted-foreground">{transaction.date}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className={`font-semibold ${transaction.amount.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                        {transaction.amount}
+                      <p className={`font-semibold ${
+                        transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
                       </p>
-                      <p className="text-sm text-muted-foreground">Bal: {transaction.balance}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {transaction.description}
+                      </p>
                     </div>
                   </div>
                 ))}

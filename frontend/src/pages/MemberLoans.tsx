@@ -1,75 +1,185 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
-import { CreditCard, Plus } from "lucide-react";
+import { CreditCard, Plus, DollarSign } from "lucide-react";
+import { memberApi } from "@/lib/api";
+
+interface Loan {
+  _id: string;
+  loanNumber: string;
+  amount: number;
+  purpose: string;
+  status: string;
+  interestRate: number;
+  term: number;
+  monthlyPayment: number;
+  totalPayment: number;
+  remainingBalance: number;
+  nextPaymentDate: string;
+  createdAt: string;
+}
 
 const MemberLoans = () => {
-  const [loanType, setLoanType] = useState("");
-  const [loanAmount, setLoanAmount] = useState("");
-  const [repaymentPeriod, setRepaymentPeriod] = useState("");
-  const [isApplicationOpen, setIsApplicationOpen] = useState(false);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isApplyOpen, setIsApplyOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const { toast } = useToast();
 
-  const handleLoanApplication = (e: React.FormEvent) => {
+  const [loanApplication, setLoanApplication] = useState({
+    amount: "",
+    purpose: "",
+    term: "12",
+    collateral: "",
+    guarantors: [{ name: "", phone: "", address: "", relationship: "" }],
+  });
+
+  const [paymentData, setPaymentData] = useState({
+    amount: "",
+    paymentMethod: "cash",
+  });
+
+  const fetchLoans = async () => {
+    try {
+      const response = await memberApi.getLoans();
+      setLoans(response.data.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load loans",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLoans();
+  }, [toast]);
+
+  const handleLoanApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loanType && loanAmount && repaymentPeriod) {
+    try {
+      const amount = parseFloat(loanApplication.amount);
+      const term = parseInt(loanApplication.term);
+
+      if (amount <= 0 || term <= 0) {
+        toast({
+          title: "Invalid Input",
+          description: "Please enter valid amount and term",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await memberApi.applyForLoan({
+        amount,
+        purpose: loanApplication.purpose,
+        term,
+        collateral: loanApplication.collateral,
+        guarantors: loanApplication.guarantors.filter(g => g.name && g.phone),
+      });
+
       toast({
         title: "Loan Application Submitted",
         description: "Your loan application has been submitted for review",
       });
-      setLoanType("");
-      setLoanAmount("");
-      setRepaymentPeriod("");
-      setIsApplicationOpen(false);
+
+      setLoanApplication({
+        amount: "",
+        purpose: "",
+        term: "12",
+        collateral: "",
+        guarantors: [{ name: "", phone: "", address: "", relationship: "" }],
+      });
+      setIsApplyOpen(false);
+      fetchLoans();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit loan application",
+        variant: "destructive",
+      });
     }
   };
 
-  const activeLoans = [
-    {
-      id: 1,
-      type: "Personal",
-      amount: 5000,
-      remainingBalance: 3500,
-      monthlyPayment: 425,
-      nextDueDate: "2024-06-20",
-      status: "Active"
-    },
-    {
-      id: 2,
-      type: "Emergency",
-      amount: 2000,
-      remainingBalance: 800,
-      monthlyPayment: 200,
-      nextDueDate: "2024-06-25",
-      status: "Active"
-    }
-  ];
+  const handleLoanPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLoan) return;
 
-  const loanHistory = [
-    { id: 1, type: "Personal", amount: 5000, period: "12 months", status: "Active", dateApplied: "2024-01-15" },
-    { id: 2, type: "Emergency", amount: 2000, period: "6 months", status: "Active", dateApplied: "2024-03-20" },
-    { id: 3, type: "Business", amount: 10000, period: "18 months", status: "Approved", dateApplied: "2024-05-01" },
-    { id: 4, type: "Personal", amount: 3000, period: "9 months", status: "Repaid", dateApplied: "2023-08-10" },
-  ];
+    try {
+      const amount = parseFloat(paymentData.amount);
+      if (amount <= 0) {
+        toast({
+          title: "Invalid Amount",
+          description: "Please enter a valid amount",
+          variant: "destructive",
+        });
+        return;
+      }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active": return "bg-green-100 text-green-800";
-      case "Approved": return "bg-blue-100 text-blue-800";
-      case "Pending": return "bg-yellow-100 text-yellow-800";
-      case "Repaid": return "bg-gray-100 text-gray-800";
-      case "Rejected": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
+      await memberApi.makeLoanPayment(selectedLoan._id, {
+        amount,
+        paymentMethod: paymentData.paymentMethod,
+      });
+
+      toast({
+        title: "Payment Successful",
+        description: `$${amount.toLocaleString()} has been applied to your loan`,
+      });
+
+      setPaymentData({ amount: "", paymentMethod: "cash" });
+      setIsPaymentOpen(false);
+      setSelectedLoan(null);
+      fetchLoans();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process payment",
+        variant: "destructive",
+      });
     }
   };
+
+  const addGuarantor = () => {
+    setLoanApplication({
+      ...loanApplication,
+      guarantors: [
+        ...loanApplication.guarantors,
+        { name: "", phone: "", address: "", relationship: "" },
+      ],
+    });
+  };
+
+  const removeGuarantor = (index: number) => {
+    setLoanApplication({
+      ...loanApplication,
+      guarantors: loanApplication.guarantors.filter((_, i) => i !== index),
+    });
+  };
+
+  const updateGuarantor = (index: number, field: string, value: string) => {
+    const updatedGuarantors = [...loanApplication.guarantors];
+    updatedGuarantors[index] = { ...updatedGuarantors[index], [field]: value };
+    setLoanApplication({ ...loanApplication, guarantors: updatedGuarantors });
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -78,66 +188,122 @@ const MemberLoans = () => {
           <div>
             <h1 className="text-3xl font-bold">Loans</h1>
             <p className="text-muted-foreground">
-              Manage your loan applications and repayments
+              Manage your loans and payments
             </p>
           </div>
-          <Dialog open={isApplicationOpen} onOpenChange={setIsApplicationOpen}>
+          <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
                 Apply for Loan
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Loan Application</DialogTitle>
+                <DialogTitle>Apply for a Loan</DialogTitle>
                 <DialogDescription>
-                  Fill out the form to apply for a new loan
+                  Fill in the details to apply for a loan
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleLoanApplication} className="space-y-4">
-                <div>
-                  <Label htmlFor="loan-type">Loan Type</Label>
-                  <Select value={loanType} onValueChange={setLoanType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select loan type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="personal">Personal</SelectItem>
-                      <SelectItem value="emergency">Emergency</SelectItem>
-                      <SelectItem value="business">Business</SelectItem>
-                      <SelectItem value="education">Education</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="amount">Loan Amount ($)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      min="1000"
+                      step="100"
+                      value={loanApplication.amount}
+                      onChange={(e) => setLoanApplication({ ...loanApplication, amount: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="term">Term (months)</Label>
+                    <Input
+                      id="term"
+                      type="number"
+                      min="1"
+                      max="36"
+                      value={loanApplication.term}
+                      onChange={(e) => setLoanApplication({ ...loanApplication, term: e.target.value })}
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
-                  <Label htmlFor="loan-amount">Loan Amount ($)</Label>
+                  <Label htmlFor="purpose">Purpose</Label>
                   <Input
-                    id="loan-amount"
-                    type="number"
-                    min="100"
-                    step="100"
-                    placeholder="Enter loan amount"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(e.target.value)}
+                    id="purpose"
+                    value={loanApplication.purpose}
+                    onChange={(e) => setLoanApplication({ ...loanApplication, purpose: e.target.value })}
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="repayment-period">Repayment Period</Label>
-                  <Select value={repaymentPeriod} onValueChange={setRepaymentPeriod}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select repayment period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="3">3 months</SelectItem>
-                      <SelectItem value="6">6 months</SelectItem>
-                      <SelectItem value="9">9 months</SelectItem>
-                      <SelectItem value="12">12 months</SelectItem>
-                      <SelectItem value="18">18 months</SelectItem>
-                      <SelectItem value="24">24 months</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="collateral">Collateral (Optional)</Label>
+                  <Input
+                    id="collateral"
+                    value={loanApplication.collateral}
+                    onChange={(e) => setLoanApplication({ ...loanApplication, collateral: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Guarantors</Label>
+                  {loanApplication.guarantors.map((guarantor, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <Input
+                          placeholder="Name"
+                          value={guarantor.name}
+                          onChange={(e) => updateGuarantor(index, 'name', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          placeholder="Phone"
+                          value={guarantor.phone}
+                          onChange={(e) => updateGuarantor(index, 'phone', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          placeholder="Address"
+                          value={guarantor.address}
+                          onChange={(e) => updateGuarantor(index, 'address', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Relationship"
+                          value={guarantor.relationship}
+                          onChange={(e) => updateGuarantor(index, 'relationship', e.target.value)}
+                          required
+                        />
+                        {index > 0 && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => removeGuarantor(index)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={addGuarantor}
+                  >
+                    Add Guarantor
+                  </Button>
                 </div>
                 <Button type="submit" className="w-full">
                   Submit Application
@@ -147,79 +313,99 @@ const MemberLoans = () => {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Active Loans
-              </CardTitle>
-              <CardDescription>
-                Your current loan obligations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activeLoans.map((loan) => (
-                  <div key={loan.id} className="p-4 bg-muted rounded-lg">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold">{loan.type} Loan</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Original Amount: ${loan.amount.toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(loan.status)}>
-                        {loan.status}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Remaining Balance</p>
-                        <p className="font-semibold">${loan.remainingBalance.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Monthly Payment</p>
-                        <p className="font-semibold">${loan.monthlyPayment}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Next Due Date</p>
-                        <p className="font-semibold">{loan.nextDueDate}</p>
-                      </div>
-                    </div>
+        <div className="grid grid-cols-1 gap-6">
+          {loans.map((loan) => (
+            <Card key={loan._id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>Loan #{loan.loanNumber}</CardTitle>
+                    <CardDescription>
+                      {loan.purpose}
+                    </CardDescription>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Loan History</CardTitle>
-              <CardDescription>
-                All your loan applications and their status
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {loanHistory.map((loan) => (
-                  <div key={loan.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{loan.type} Loan</p>
-                      <p className="text-sm text-muted-foreground">
-                        ${loan.amount.toLocaleString()} • {loan.period}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{loan.dateApplied}</p>
-                    </div>
-                    <Badge className={getStatusColor(loan.status)}>
-                      {loan.status}
-                    </Badge>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    loan.status === 'active' ? 'bg-green-100 text-green-800' :
+                    loan.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    loan.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Amount</p>
+                    <p className="font-medium">${loan.amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Monthly Payment</p>
+                    <p className="font-medium">${loan.monthlyPayment.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Remaining Balance</p>
+                    <p className="font-medium">${loan.remainingBalance.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Next Payment</p>
+                    <p className="font-medium">
+                      {loan.nextPaymentDate
+                        ? new Date(loan.nextPaymentDate).toLocaleDateString()
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                {loan.status === 'active' && (
+                  <div className="mt-4">
+                    <Button
+                      onClick={() => {
+                        setSelectedLoan(loan);
+                        setIsPaymentOpen(true);
+                      }}
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Make Payment
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
+
+        <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Make Loan Payment</DialogTitle>
+              <DialogDescription>
+                Enter the payment amount for loan #{selectedLoan?.loanNumber}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleLoanPayment} className="space-y-4">
+              <div>
+                <Label htmlFor="payment-amount">Amount ($)</Label>
+                <Input
+                  id="payment-amount"
+                  type="number"
+                  min="1"
+                  max={selectedLoan?.remainingBalance}
+                  step="0.01"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                  required
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Maximum: ${selectedLoan?.remainingBalance.toLocaleString()}
+                </p>
+              </div>
+              <Button type="submit" className="w-full">
+                Confirm Payment
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
