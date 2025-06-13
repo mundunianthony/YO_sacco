@@ -8,7 +8,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true
+  withCredentials: true,
+  validateStatus: function (status) {
+    return status >= 200 && status < 500; // Accept all status codes less than 500
+  }
 });
 
 // Add token to requests if it exists
@@ -19,6 +22,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Add response interceptor to handle CORS errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 0) {
+      console.error('CORS Error:', error);
+      return Promise.reject(new Error('CORS Error: Unable to access the API'));
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Member Profile API
 export const memberApi = {
