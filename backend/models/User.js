@@ -3,11 +3,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const UserSchema = new mongoose.Schema({
-  name: {
+  firstName: {
     type: String,
-    required: [true, 'Please add a name'],
+    required: [true, 'Please add a first name'],
     trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    maxlength: [50, 'First name cannot be more than 50 characters']
+  },
+  lastName: {
+    type: String,
+    required: [true, 'Please add a last name'],
+    trim: true,
+    maxlength: [50, 'Last name cannot be more than 50 characters']
   },
   email: {
     type: String,
@@ -21,7 +27,7 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Please add a password'],
-    minlength: 6,
+    minlength: 8,
     select: false
   },
   role: {
@@ -29,30 +35,67 @@ const UserSchema = new mongoose.Schema({
     enum: ['member', 'admin'],
     default: 'member'
   },
-  phone: {
+  phoneNumber: {
     type: String,
-    required: [true, 'Please add a phone number']
+    required: [true, 'Please add a phone number'],
+    match: [
+      /^\+?[\d\s-]{10,}$/,
+      'Please add a valid phone number'
+    ]
   },
   address: {
     type: String,
     required: [true, 'Please add an address']
+  },
+  memberId: {
+    type: String,
+    unique: true
+  },
+  savingsBalance: {
+    type: Number,
+    default: 0
+  },
+  loanBalance: {
+    type: Number,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'suspended'],
+    default: 'active'
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-// Encrypt password using bcrypt
+// Update the updatedAt timestamp before saving
 UserSchema.pre('save', async function(next) {
+  this.updatedAt = Date.now();
+  
   if (!this.isModified('password')) {
     next();
+    return;
   }
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Generate member ID before saving
+UserSchema.pre('save', async function(next) {
+  if (this.isNew) {
+    const count = await this.constructor.countDocuments();
+    this.memberId = `M${String(count + 1).padStart(6, '0')}`;
+  }
+  next();
 });
 
 // Sign JWT and return
