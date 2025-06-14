@@ -27,26 +27,34 @@ const UserSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['member', 'admin'],
-    default: 'member'
+    required: true
   },
   phone: {
     type: String,
     required: [true, 'Please add a phone number']
   },
-  address: {
+  status: {
     type: String,
-    required: [true, 'Please add an address']
+    enum: ['active', 'inactive'],
+    default: 'active'
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+}, {
+  timestamps: true,
+  discriminatorKey: 'role'
 });
 
 // Encrypt password using bcrypt
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     next();
   }
@@ -56,15 +64,56 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Sign JWT and return
-UserSchema.methods.getSignedJwtToken = function() {
+UserSchema.methods.getSignedJwtToken = function () {
   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE
   });
 };
 
 // Match user entered password to hashed password in database
-UserSchema.methods.matchPassword = async function(enteredPassword) {
+UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('User', UserSchema); 
+const User = mongoose.model('User', UserSchema);
+
+// Member Schema
+const MemberSchema = new mongoose.Schema({
+  address: {
+    type: String,
+    required: [true, 'Please add an address']
+  },
+  dateOfBirth: {
+    type: Date,
+    required: [true, 'Please add date of birth']
+  },
+  savingsBalance: {
+    type: Number,
+    default: 0
+  },
+  joinDate: {
+    type: Date,
+    default: Date.now
+  },
+  nationalId: String,
+  emergencyContact: {
+    name: String,
+    phone: String,
+    relationship: String
+  }
+});
+
+// Admin Schema
+const AdminSchema = new mongoose.Schema({
+  permissions: [{
+    type: String,
+    enum: ['manage_members', 'approve_loans', 'view_reports', 'send_notifications', 'manage_savings']
+  }],
+  department: String
+});
+
+// Create models
+const Member = User.discriminator('member', MemberSchema);
+const Admin = User.discriminator('admin', AdminSchema);
+
+module.exports = { User, Member, Admin }; 

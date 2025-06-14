@@ -1,54 +1,88 @@
 const mongoose = require('mongoose');
 
-const LoanSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+const LoanRepaymentSchema = new mongoose.Schema({
+  amountPaid: {
+    type: Number,
     required: true
   },
-  amount: {
+  paymentDate: {
+    type: Date,
+    default: Date.now
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'check'],
+    required: true
+  },
+  remainingBalance: {
     type: Number,
-    required: [true, 'Please add loan amount'],
-    min: [1000, 'Minimum loan amount is 1000']
+    required: true
   },
-  purpose: {
+  penaltyAmount: Number,
+  receiptNumber: {
     type: String,
-    required: [true, 'Please add loan purpose'],
-    trim: true
+    required: true
   },
-  status: {
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+});
+
+const LoanSchema = new mongoose.Schema({
+  memberId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Member',
+    required: true
+  },
+  loanType: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'paid'],
-    default: 'pending'
+    enum: ['personal', 'emergency', 'business', 'education', 'housing'],
+    required: true
+  },
+  amountRequested: {
+    type: Number,
+    required: true
+  },
+  amountApproved: Number,
+  repaymentPeriod: {
+    type: Number,
+    required: true
   },
   interestRate: {
     type: Number,
-    required: true,
-    default: 10 // 10% interest rate
-  },
-  term: {
-    type: Number,
-    required: [true, 'Please add loan term in months'],
-    min: [1, 'Minimum term is 1 month'],
-    max: [36, 'Maximum term is 36 months']
-  },
-  monthlyPayment: {
-    type: Number,
     required: true
   },
-  totalPayment: {
-    type: Number,
-    required: true
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'active', 'completed', 'defaulted'],
+    default: 'pending'
   },
+  applicationDate: {
+    type: Date,
+    default: Date.now
+  },
+  approvalDate: Date,
+  rejectionReason: String,
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  approvedAt: Date,
-  createdAt: {
-    type: Date,
-    default: Date.now
+  totalRepayable: Number,
+  monthlyRepayment: Number,
+  repaymentHistory: [LoanRepaymentSchema],
+  remainingBalance: {
+    type: Number,
+    default: 0
+  },
+  nextPaymentDate: Date,
+  collateral: String,
+  purpose: {
+    type: String,
+    required: true
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Loan', LoanSchema); 

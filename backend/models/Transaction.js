@@ -1,43 +1,45 @@
 const mongoose = require('mongoose');
 
 const TransactionSchema = new mongoose.Schema({
-  user: {
+  memberId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Member',
     required: true
   },
-  type: {
+  transactionType: {
     type: String,
-    enum: ['deposit', 'withdrawal', 'loan_payment', 'loan_disbursement'],
+    enum: ['deposit', 'withdrawal'],
     required: true
   },
   amount: {
     type: Number,
-    required: [true, 'Please add transaction amount'],
-    min: [0, 'Amount cannot be negative']
+    required: true
   },
-  description: {
-    type: String,
-    required: [true, 'Please add transaction description'],
-    trim: true
+  date: {
+    type: Date,
+    default: Date.now
+  },
+  balanceBefore: {
+    type: Number,
+    required: true
+  },
+  balanceAfter: {
+    type: Number,
+    required: true
+  },
+  description: String,
+  reference: String,
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   status: {
     type: String,
     enum: ['pending', 'completed', 'failed'],
     default: 'pending'
-  },
-  reference: {
-    type: String,
-    unique: true
-  },
-  loan: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Loan'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Transaction', TransactionSchema); 
