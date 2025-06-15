@@ -1,4 +1,3 @@
-
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -37,8 +36,12 @@ export const Layout = ({ children }: LayoutProps) => {
               <h1 className="text-xl font-semibold">YO Sacco</h1>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Welcome, {currentUser.name}
+              <span className="text-sm font-medium">
+                {(() => {
+                  const hour = new Date().getHours();
+                  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+                  return `${greeting}, ${currentUser.firstName} ${currentUser.lastName}`;
+                })()}
               </span>
               <NotificationBell />
               <Button variant="ghost" size="sm" onClick={handleLogout}>

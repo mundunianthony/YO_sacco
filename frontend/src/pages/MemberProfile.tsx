@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,15 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail, Phone, MapPin, Calendar, Lock } from "lucide-react";
+import { memberApi } from "@/lib/api";
+
+interface ProfileData {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  dob: string;
+  memberId: string;
+}
 
 const MemberProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
-    name: "John Doe",
-    email: "member@yosacco.com",
-    phone: "+1 (555) 123-4567",
-    address: "123 Main St, Anytown, USA",
-    dob: "1990-05-15",
+  const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<ProfileData>({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    dob: "",
+    memberId: "",
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -24,39 +35,91 @@ const MemberProfile = () => {
   });
   const { toast } = useToast();
 
-  const handleProfileUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been successfully updated",
-    });
-    setIsEditing(false);
+  const fetchProfile = async () => {
+    try {
+      const response = await memberApi.getProfile();
+      setProfileData(response.data.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load profile data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchProfile();
+  }, [toast]);
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
+    try {
+      await memberApi.updateProfile(profileData);
       toast({
-        title: "Password Mismatch",
-        description: "New password and confirmation do not match",
+        title: "Profile Updated",
+        description: "Your profile information has been successfully updated",
+      });
+      setIsEditing(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
         variant: "destructive",
       });
-      return;
     }
-    if (passwordData.newPassword.length < 8) {
-      toast({
-        title: "Weak Password",
-        description: "Password must be at least 8 characters long",
-        variant: "destructive",
-      });
-      return;
-    }
-    toast({
-      title: "Password Changed",
-      description: "Your password has been successfully updated",
-    });
-    setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
   };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        toast({
+          title: "Password Mismatch",
+          description: "New password and confirmation do not match",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (passwordData.newPassword.length < 8) {
+        toast({
+          title: "Weak Password",
+          description: "Password must be at least 8 characters long",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await memberApi.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+
+      toast({
+        title: "Password Changed",
+        description: "Your password has been successfully updated",
+      });
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to change password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -139,12 +202,20 @@ const MemberProfile = () => {
                       <Input
                         id="dob"
                         type="date"
-                        value={profileData.dob}
+                        value={profileData.dob.split('T')[0]}
                         onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
                         disabled={!isEditing}
                         className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <Label>Member ID</Label>
+                    <Input
+                      value={profileData.memberId}
+                      disabled
+                      className="bg-muted"
+                    />
                   </div>
                 </div>
                 <div className="flex gap-2">

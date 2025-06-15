@@ -1,20 +1,44 @@
 const mongoose = require('mongoose');
 
-const LoanRepaymentSchema = new mongoose.Schema({
-  amountPaid: {
+const PaymentSchema = new mongoose.Schema({
+  amount: {
     type: Number,
     required: true
   },
-  paymentDate: {
+  date: {
     type: Date,
     default: Date.now
   },
-  paymentMethod: {
+  receiptNumber: {
     type: String,
-    enum: ['cash', 'bank_transfer', 'mobile_money', 'check'],
+    required: true,
+    default: function() {
+      return `REC${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    }
+  },
+  transaction: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Transaction'
+  }
+});
+
+const LoanSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
-  remainingBalance: {
+  loanNumber: {
+    type: String,
+    unique: true,
+    required: true,
+    default: function() {
+      const timestamp = Date.now().toString();
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      return `LOAN${timestamp}${random}`;
+    }
+  },
+  amount: {
     type: Number,
     required: true
   },
@@ -37,8 +61,8 @@ const LoanSchema = new mongoose.Schema({
   },
   loanType: {
     type: String,
-    enum: ['personal', 'emergency', 'business', 'education', 'housing'],
-    required: true
+    enum: ['pending', 'approved', 'rejected', 'active', 'paid', 'defaulted'],
+    default: 'pending'
   },
   amountRequested: {
     type: Number,
@@ -53,36 +77,68 @@ const LoanSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  status: {
+  remainingBalance: {
+    type: Number,
+    required: true
+  },
+  nextPaymentDate: {
+    type: Date
+  },
+  lastPaymentDate: {
+    type: Date
+  },
+  paymentHistory: [PaymentSchema],
+  collateral: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'active', 'completed', 'defaulted'],
-    default: 'pending'
+    trim: true
   },
-  applicationDate: {
-    type: Date,
-    default: Date.now
-  },
-  approvalDate: Date,
-  rejectionReason: String,
+  guarantors: [{
+    name: String,
+    phone: String,
+    address: String,
+    relationship: String
+  }],
+  documents: [{
+    type: String,
+    name: String,
+    uploadedAt: Date
+  }],
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  totalRepayable: Number,
-  monthlyRepayment: Number,
-  repaymentHistory: [LoanRepaymentSchema],
-  remainingBalance: {
-    type: Number,
-    default: 0
-  },
-  nextPaymentDate: Date,
-  collateral: String,
-  purpose: {
+  approvedAt: Date,
+  rejectionReason: {
     type: String,
-    required: true
+    trim: true
+  },
+  notes: {
+    type: String,
+    trim: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
+});
+
+// Update the updatedAt timestamp before saving
+LoanSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+// Calculate remaining balance before saving
+LoanSchema.pre('save', function(next) {
+  if (this.isModified('paymentHistory')) {
+    const totalPaid = this.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
+    this.remainingBalance = this.totalPayment - totalPaid;
+  }
+  next();
 });
 
 module.exports = mongoose.model('Loan', LoanSchema); 

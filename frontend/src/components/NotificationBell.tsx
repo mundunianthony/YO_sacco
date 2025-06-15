@@ -1,6 +1,5 @@
-
-import { useState } from "react";
-import { Bell } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,33 +10,145 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { notificationApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import axios from "axios";
+
+interface Notification {
+  _id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  user?: {
+    firstName: string;
+    lastName: string;
+  };
+}
 
 export const NotificationBell = () => {
-  const [notifications] = useState([
-    {
-      id: 1,
-      type: "loan_application",
-      message: "New loan application submitted by John Doe",
-      date: "2024-06-12",
-      read: false,
-    },
-    {
-      id: 2,
-      type: "repayment_reminder",
-      message: "Loan repayment due tomorrow",
-      date: "2024-06-11",
-      read: false,
-    },
-    {
-      id: 3,
-      type: "deposit_confirmation",
-      message: "Your deposit of $500 has been processed",
-      date: "2024-06-10",
-      read: true,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchNotifications = async () => {
+    console.log('Fetching notifications...');
+    try {
+      const response = await notificationApi.getNotifications();
+      console.log('Notifications Response:', response.data);
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      if (response.data.success) {
+        console.log('Setting notifications:', response.data.data);
+        setNotifications(response.data.data);
+      } else {
+        console.error('Response indicates failure:', response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+      }
+      toast({
+        title: "Error",
+        description: "Failed to load notifications",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    console.log('Marking notification as read:', notificationId);
+    try {
+      const response = await notificationApi.markAsRead(notificationId);
+      console.log('Mark as read response:', response.data);
+      
+      setNotifications(prevNotifications => {
+        const updated = prevNotifications.map(notification =>
+          notification._id === notificationId
+            ? { ...notification, read: true }
+            : notification
+        );
+        console.log('Updated notifications:', updated);
+        return updated;
+      });
+
+      toast({
+        title: "Success",
+        description: "Notification marked as read",
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+      }
+      toast({
+        title: "Error",
+        description: "Failed to mark notification as read",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    console.log('Marking all notifications as read');
+    try {
+      const response = await notificationApi.markAllAsRead();
+      console.log('Mark all as read response:', response.data);
+      
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => ({ ...notification, read: true }))
+      );
+      
+      toast({
+        title: "Success",
+        description: "All notifications marked as read",
+      });
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+      }
+      toast({
+        title: "Error",
+        description: "Failed to mark all notifications as read",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    console.log('NotificationBell mounted');
+    fetchNotifications();
+    // Set up polling for new notifications every minute
+    const interval = setInterval(() => {
+      console.log('Polling for new notifications...');
+      fetchNotifications();
+    }, 60000);
+    return () => {
+      console.log('NotificationBell unmounting');
+      clearInterval(interval);
+    };
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  console.log('Current unread count:', unreadCount);
+  console.log('Current notifications:', notifications);
 
   return (
     <DropdownMenu>
@@ -55,16 +166,49 @@ export const NotificationBell = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+        <div className="flex items-center justify-between px-4 py-2">
+          <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMarkAllAsRead}
+              className="h-8 text-xs"
+            >
+              Mark all as read
+            </Button>
+          )}
+        </div>
         <DropdownMenuSeparator />
-        {notifications.map((notification) => (
-          <DropdownMenuItem key={notification.id} className="flex flex-col items-start">
-            <div className={`text-sm ${!notification.read ? 'font-medium' : ''}`}>
-              {notification.message}
-            </div>
-            <div className="text-xs text-muted-foreground">{notification.date}</div>
-          </DropdownMenuItem>
-        ))}
+        {loading ? (
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            Loading notifications...
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            No notifications
+          </div>
+        ) : (
+          notifications.map((notification) => (
+            <DropdownMenuItem
+              key={notification._id}
+              className={`flex flex-col items-start p-3 ${!notification.read ? 'bg-muted' : ''}`}
+              onClick={() => !notification.read && handleMarkAsRead(notification._id)}
+            >
+              <div className="flex items-start justify-between w-full">
+                <div className={`text-sm ${!notification.read ? 'font-medium' : ''}`}>
+                  {notification.message}
+                </div>
+                {notification.read && (
+                  <Check className="h-4 w-4 text-green-500 ml-2 flex-shrink-0" />
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {new Date(notification.createdAt).toLocaleDateString()}
+              </div>
+            </DropdownMenuItem>
+          ))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
