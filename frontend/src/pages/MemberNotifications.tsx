@@ -29,7 +29,7 @@ const MemberNotifications = () => {
     try {
       const response = await notificationApi.getNotifications();
       if (response.data.success) {
-        setNotifications(response.data.data);
+        setNotifications(response.data.data.notifications || []);
       }
     } catch (error) {
       toast({

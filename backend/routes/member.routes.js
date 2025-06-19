@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Loan = require('../models/Loan');
 const Transaction = require('../models/Transaction');
 const savingsController = require('../controllers/savings.controller');
+const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -46,6 +47,9 @@ router.put('/profile', authenticate, async (req, res) => {
       updateFields,
       { new: true, runValidators: true }
     ).select('-password');
+
+    // Send notification for profile update
+    await NotificationService.notifyProfileUpdate(req.user.id);
 
     res.status(200).json({
       success: true,

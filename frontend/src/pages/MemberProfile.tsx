@@ -56,6 +56,7 @@ const MemberProfile = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEditing) return;
     try {
       await memberApi.updateProfile(profileData);
       toast({
@@ -143,96 +144,119 @@ const MemberProfile = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleProfileUpdate} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={profileData.name}
-                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                      disabled={!isEditing}
-                      className={isEditing ? "" : "bg-muted"}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              {isEditing ? (
+                <form onSubmit={handleProfileUpdate} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label htmlFor="name">Full Name</Label>
                       <Input
-                        id="email"
-                        type="email"
-                        value={profileData.email}
-                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                        disabled={!isEditing}
-                        className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                        id="name"
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                        className={isEditing ? "" : "bg-muted"}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          value={profileData.email}
+                          onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="phone"
+                          value={profileData.phone}
+                          onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="address">Address</Label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="address"
+                          value={profileData.address}
+                          onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="dob">Date of Birth</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="dob"
+                          type="date"
+                          value={profileData.dob ? profileData.dob.split('T')[0] : ""}
+                          onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
+                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Member ID</Label>
+                      <Input
+                        value={profileData.memberId}
+                        disabled
+                        className="bg-muted"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="phone"
-                        value={profileData.phone}
-                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                        disabled={!isEditing}
-                        className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
-                      />
+                  <div className="flex gap-2">
+                    <Button type="submit">Save Changes</Button>
+                    <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label>Full Name</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.name}</div>
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.email}</div>
+                    </div>
+                    <div>
+                      <Label>Phone Number</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.phone}</div>
+                    </div>
+                    <div>
+                      <Label>Address</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.address}</div>
+                    </div>
+                    <div>
+                      <Label>Date of Birth</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.dob ? profileData.dob.split('T')[0] : ""}</div>
+                    </div>
+                    <div>
+                      <Label>Member ID</Label>
+                      <div className="bg-muted rounded px-3 py-2">{profileData.memberId}</div>
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="address">Address</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="address"
-                        value={profileData.address}
-                        onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                        disabled={!isEditing}
-                        className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="dob">Date of Birth</Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="dob"
-                        type="date"
-                        value={profileData.dob.split('T')[0]}
-                        onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
-                        disabled={!isEditing}
-                        className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Member ID</Label>
-                    <Input
-                      value={profileData.memberId}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {isEditing ? (
-                    <>
-                      <Button type="submit">Save Changes</Button>
-                      <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
+                  <div className="flex gap-2 mt-4">
                     <Button type="button" onClick={() => setIsEditing(true)}>
                       Edit Profile
                     </Button>
-                  )}
-                </div>
-              </form>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

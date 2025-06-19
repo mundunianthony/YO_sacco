@@ -16,7 +16,8 @@ const notificationSchema = new mongoose.Schema({
       'transaction',
       'general',
       'savings_deposit',
-      'savings_withdrawal'
+      'savings_withdrawal',
+      'profile_updated'
     ]
   },
   message: {
