@@ -38,14 +38,28 @@ exports.registerUser = async (req, res) => {
       status: 'pending'
     });
 
-    // Create registration notification
+    // Find all admin users
+    const adminUsers = await User.find({ role: 'admin' });
+    console.log('Found admin users:', adminUsers.length);
+
+    // Notify all admin users about new registration
+    for (const admin of adminUsers) {
+      console.log('Notifying admin:', admin._id);
+      await NotificationService.notifyNewMemberRegistration(
+        admin._id,
+        `${firstName} ${lastName}`
+      );
+    }
+
+    // Create registration notification for the new user
     await NotificationService.createNotification({
-      type: 'member_registration',
-      message: `New member registration: ${firstName} ${lastName}`,
+      type: 'new_member',
+      message: `Welcome ${firstName}! Your registration is pending approval.`,
       user: user._id,
       relatedTo: user._id,
       onModel: 'User',
-      priority: 'medium'
+      priority: 'medium',
+      category: 'member'
     });
 
     res.status(201).json({
@@ -84,17 +98,27 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
+    const oldStatus = user.status;
     user.status = status;
     await user.save();
 
-    // Create status change notification
+    // Notify all admins about the status change
+    await NotificationService.notifyAllAdmins({
+      type: 'member_status',
+      message: `Member ${user.firstName} ${user.lastName}'s status changed from ${oldStatus} to ${status}`,
+      priority: 'high',
+      category: 'member'
+    });
+
+    // Create status change notification for the user
     await NotificationService.createNotification({
-      type: 'member_status_change',
-      message: `Your account status has been changed to ${status}`,
+      type: 'member_status',
+      message: `Your account status has been changed from ${oldStatus} to ${status}`,
       user: user._id,
       relatedTo: user._id,
       onModel: 'User',
-      priority: 'high'
+      priority: 'high',
+      category: 'member'
     });
 
     res.status(200).json({

@@ -109,7 +109,7 @@ const AdminMembers = () => {
                     <TableCell>{member.firstName} {member.lastName}</TableCell>
                     <TableCell>{member.email}</TableCell>
                     <TableCell>{member.phoneNumber}</TableCell>
-                    <TableCell>${member.savingsBalance.toLocaleString()}</TableCell>
+                    <TableCell>UGX{member.savingsBalance.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant={member.status === "active" ? "default" : "secondary"}>
                         {member.status}

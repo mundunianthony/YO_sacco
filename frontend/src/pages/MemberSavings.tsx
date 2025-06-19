@@ -69,7 +69,7 @@ const MemberSavings = () => {
 
       toast({
         title: "Deposit Successful",
-        description: `$${amount.toLocaleString()} has been added to your savings`,
+        description: `UGX${amount.toLocaleString()} has been added to your savings`,
       });
       
       setDepositAmount("");
@@ -113,7 +113,7 @@ const MemberSavings = () => {
 
       toast({
         title: "Withdrawal Successful",
-        description: `$${amount.toLocaleString()} has been withdrawn from your savings`,
+        description: `UGX${amount.toLocaleString()} has been withdrawn from your savings`,
       });
       
       setWithdrawAmount("");
@@ -158,7 +158,7 @@ const MemberSavings = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600">
-                ${savingsData?.currentBalance.toLocaleString() ?? '0'}
+                UGX{savingsData?.currentBalance.toLocaleString() ?? '0'}
               </div>
               <p className="text-muted-foreground mt-2">
                 Available for withdrawal
@@ -180,7 +180,7 @@ const MemberSavings = () => {
                     </DialogHeader>
                     <form onSubmit={handleDeposit} className="space-y-4">
                       <div>
-                        <Label htmlFor="deposit-amount">Amount ($)</Label>
+                        <Label htmlFor="deposit-amount">Amount (UGX)</Label>
                         <Input
                           id="deposit-amount"
                           type="number"
@@ -215,7 +215,7 @@ const MemberSavings = () => {
                     </DialogHeader>
                     <form onSubmit={handleWithdraw} className="space-y-4">
                       <div>
-                        <Label htmlFor="withdraw-amount">Amount ($)</Label>
+                        <Label htmlFor="withdraw-amount">Amount (UGX)</Label>
                         <Input
                           id="withdraw-amount"
                           type="number"
@@ -228,7 +228,7 @@ const MemberSavings = () => {
                           required
                         />
                         <p className="text-sm text-muted-foreground mt-1">
-                          Maximum: ${savingsData?.currentBalance.toLocaleString() ?? '0'}
+                          Maximum: UGX{savingsData?.currentBalance.toLocaleString() ?? '0'}
                         </p>
                       </div>
                       <Button type="submit" className="w-full">
@@ -272,10 +272,10 @@ const MemberSavings = () => {
                       <p className={`font-semibold ${
                         transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                        {transaction.amount > 0 ? '+' : ''}UGX{Math.abs(transaction.amount).toLocaleString()}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Balance: ${transaction.balanceAfter.toLocaleString()}
+                        Balance: UGX{transaction.balanceAfter.toLocaleString()}
                       </p>
                     </div>
                   </div>

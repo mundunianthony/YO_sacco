@@ -103,7 +103,7 @@ const AdminDashboard = () => {
     },
     {
       title: "Total Savings",
-      value: `$${dashboardData.savings?.total?.toLocaleString() ?? '0'}`,
+      value: `UGX${dashboardData.savings?.total?.toLocaleString() ?? '0'}`,
       description: `${(dashboardData.savings?.monthlyGrowth ?? 0) > 0 ? '+' : ''}${dashboardData.savings?.monthlyGrowth ?? 0}% from last month`,
       icon: DollarSign,
       color: "text-green-600",
@@ -111,7 +111,7 @@ const AdminDashboard = () => {
     {
       title: "Active Loans",
       value: dashboardData.loans?.active?.toLocaleString() ?? '0',
-      description: `Total: $${dashboardData.loans?.totalAmount?.toLocaleString() ?? '0'}`,
+      description: `Total: UGX${dashboardData.loans?.totalAmount?.toLocaleString() ?? '0'}`,
       icon: CreditCard,
       color: "text-orange-600",
     },
@@ -174,7 +174,7 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">${loan.amount.toLocaleString()}</p>
+                      <p className="font-semibold">UGX{loan.amount.toLocaleString()}</p>
                       <p className="text-sm text-orange-600">{loan.status}</p>
                     </div>
                   </div>
@@ -203,7 +203,7 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">${transaction.amount.toLocaleString()}</p>
+                      <p className="font-semibold">UGX{transaction.amount.toLocaleString()}</p>
                     </div>
                   </div>
                 ))}

@@ -52,7 +52,7 @@ const MemberDashboard = () => {
   const stats = [
     {
       title: "Total Savings",
-      value: `$${dashboardData?.savingsBalance.toLocaleString() ?? '0'}`,
+      value: `UGX${dashboardData?.savingsBalance.toLocaleString() ?? '0'}`,
       description: "Available balance",
       icon: PiggyBank,
       color: "text-green-600",
@@ -60,20 +60,20 @@ const MemberDashboard = () => {
     {
       title: "Active Loans",
       value: dashboardData?.activeLoans.toString() ?? '0',
-      description: `Total: $${dashboardData?.totalLoanAmount.toLocaleString() ?? '0'}`,
+      description: `Total: UGX${dashboardData?.totalLoanAmount.toLocaleString() ?? '0'}`,
       icon: CreditCard,
       color: "text-blue-600",
     },
     {
       title: "Interest Earned",
-      value: `$${dashboardData?.interestEarned.toLocaleString() ?? '0'}`,
+      value: `UGX${dashboardData?.interestEarned.toLocaleString() ?? '0'}`,
       description: "This year",
       icon: TrendingUp,
       color: "text-purple-600",
     },
     {
       title: "Next Payment",
-      value: `$${dashboardData?.nextPayment.toLocaleString() ?? '0'}`,
+      value: `UGX${dashboardData?.nextPayment.toLocaleString() ?? '0'}`,
       description: dashboardData?.nextPaymentDate 
         ? `Due ${new Date(dashboardData.nextPaymentDate).toLocaleDateString()}`
         : "No upcoming payments",
@@ -178,7 +178,7 @@ const MemberDashboard = () => {
                       <p className={`font-semibold ${
                         transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
+                        {transaction.amount > 0 ? '+' : ''}UGX{Math.abs(transaction.amount).toLocaleString()}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {transaction.description}

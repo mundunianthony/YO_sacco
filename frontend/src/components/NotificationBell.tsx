@@ -41,7 +41,7 @@ export const NotificationBell = () => {
       
       if (response.data.success) {
         console.log('Setting notifications:', response.data.data);
-        setNotifications(response.data.data);
+        setNotifications(response.data.data.notifications || []);
       } else {
         console.error('Response indicates failure:', response.data);
       }

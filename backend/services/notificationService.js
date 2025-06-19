@@ -8,56 +8,29 @@ class NotificationService {
     user,
     relatedTo,
     onModel,
-    priority = 'medium'
+    priority = 'medium',
+    category = 'general'
   }) {
     try {
-      console.log('=== CREATING NOTIFICATION ===');
-      console.log('Input data:', {
+      console.log('=== CREATE NOTIFICATION ===');
+      console.log('Notification data:', {
         type,
         message,
         user,
         relatedTo,
         onModel,
-        priority
+        priority,
+        category
       });
 
-      // Validate required fields
-      if (!type || !message || !user) {
-        console.error('Missing required fields:', { type, message, user });
-        throw new Error('Missing required fields: type, message, and user are required');
-      }
-
-      // Validate type
-      const validTypes = [
-        'loan_application',
-        'loan_approval',
-        'loan_rejection',
-        'loan_payment',
-        'savings_deposit',
-        'savings_withdrawal',
-        'member_registration',
-        'member_status_change',
-        'system_alert'
-      ];
-      if (!validTypes.includes(type)) {
-        console.error('Invalid notification type:', type);
-        throw new Error(`Invalid notification type: ${type}`);
-      }
-
-      // Check if user exists
-      console.log('Checking if user exists:', user);
+      // Validate user exists
       const userExists = await User.findById(user);
       if (!userExists) {
         console.error('User not found:', user);
-        throw new Error(`User not found: ${user}`);
+        throw new Error('User not found');
       }
-      console.log('User found:', {
-        id: userExists._id,
-        email: userExists.email,
-        role: userExists.role
-      });
+      console.log('User validated:', userExists.email);
 
-      console.log('Creating notification in database...');
       const notification = await Notification.create({
         type,
         message,
@@ -65,6 +38,7 @@ class NotificationService {
         relatedTo,
         onModel,
         priority,
+        category,
         read: false
       });
 
@@ -73,145 +47,44 @@ class NotificationService {
         type: notification.type,
         message: notification.message,
         user: notification.user,
-        createdAt: notification.createdAt
-      });
-
-      return notification;
-    } catch (error) {
-      console.error('Error creating notification:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
-      throw error;
-    }
-  }
-
-  static async getNotifications(userId) {
-    try {
-      console.log('=== GETTING NOTIFICATIONS ===');
-      console.log('User ID:', userId);
-
-      if (!userId) {
-        console.error('User ID is required');
-        throw new Error('User ID is required');
-      }
-
-      console.log('Finding notifications...');
-      const notifications = await Notification.find({ user: userId })
-        .sort({ createdAt: -1 })
-        .limit(50);
-
-      console.log('Found notifications:', notifications.length);
-      if (notifications.length > 0) {
-        console.log('First notification:', {
-          id: notifications[0]._id,
-          type: notifications[0].type,
-          message: notifications[0].message,
-          read: notifications[0].read,
-          createdAt: notifications[0].createdAt
-        });
-      }
-
-      return notifications;
-    } catch (error) {
-      console.error('Error getting notifications:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
-      throw error;
-    }
-  }
-
-  static async markAsRead(notificationId, userId) {
-    try {
-      console.log('=== MARKING NOTIFICATION AS READ ===');
-      console.log('Notification ID:', notificationId);
-      console.log('User ID:', userId);
-
-      if (!notificationId || !userId) {
-        console.error('Missing required fields:', { notificationId, userId });
-        throw new Error('Notification ID and User ID are required');
-      }
-
-      console.log('Finding notification...');
-      const notification = await Notification.findOneAndUpdate(
-        { _id: notificationId, user: userId },
-        { read: true },
-        { new: true }
-      );
-
-      if (!notification) {
-        console.error('Notification not found or does not belong to user');
-        throw new Error('Notification not found or does not belong to user');
-      }
-
-      console.log('Notification marked as read:', {
-        id: notification._id,
-        type: notification.type,
-        message: notification.message,
         read: notification.read
       });
-
       return notification;
     } catch (error) {
-      console.error('Error marking notification as read:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
+      console.error('Error creating notification:', error);
       throw error;
     }
   }
 
-  static async markAllAsRead(userId) {
+  static async getUserNotifications(userId, page = 1, limit = 20, query = {}) {
     try {
-      console.log('=== MARKING ALL NOTIFICATIONS AS READ ===');
-      console.log('User ID:', userId);
+      console.log('Getting notifications for user:', userId);
+      console.log('Query:', query);
 
-      if (!userId) {
-        console.error('User ID is required');
-        throw new Error('User ID is required');
-      }
+      const skip = (page - 1) * limit;
+      
+      const notifications = await Notification.find({
+        user: userId,
+        ...query
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('relatedTo', 'firstName lastName email');
 
-      console.log('Updating notifications...');
-      const result = await Notification.updateMany(
-        { user: userId, read: false },
-        { read: true }
-      );
-
-      console.log('Update result:', {
-        matchedCount: result.matchedCount,
-        modifiedCount: result.modifiedCount
-      });
-
-      return result;
+      console.log('Found notifications:', notifications.length);
+      return notifications;
     } catch (error) {
-      console.error('Error marking all notifications as read:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
+      console.error('Error getting user notifications:', error);
       throw error;
     }
   }
 
   static async getUnreadCount(userId) {
     try {
-      console.log('=== GETTING UNREAD COUNT ===');
+      console.log('=== GET UNREAD COUNT ===');
       console.log('User ID:', userId);
 
-      if (!userId) {
-        console.error('User ID is required');
-        throw new Error('User ID is required');
-      }
-
-      console.log('Counting unread notifications...');
       const count = await Notification.countDocuments({
         user: userId,
         read: false
@@ -220,14 +93,546 @@ class NotificationService {
       console.log('Unread count:', count);
       return count;
     } catch (error) {
-      console.error('Error getting unread count:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-        name: error.name
-      });
+      console.error('Error getting unread count:', error);
       throw error;
     }
+  }
+
+  static async markAsRead(notificationId, userId) {
+    try {
+      console.log('=== MARK AS READ ===');
+      console.log('Notification ID:', notificationId);
+      console.log('User ID:', userId);
+
+      const notification = await Notification.findOneAndUpdate(
+        { _id: notificationId, user: userId },
+        { read: true },
+        { new: true }
+      );
+
+      if (!notification) {
+        console.log('Notification not found or does not belong to user');
+        return null;
+      }
+
+      console.log('Notification marked as read:', {
+        id: notification._id,
+        type: notification.type,
+        message: notification.message
+      });
+
+      return notification;
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  }
+
+  static async markAllAsRead(userId) {
+    try {
+      console.log('=== MARK ALL AS READ ===');
+      console.log('User ID:', userId);
+
+      const result = await Notification.updateMany(
+        { user: userId, read: false },
+        { read: true }
+      );
+
+      console.log('Updated notifications:', {
+        matched: result.matchedCount,
+        modified: result.modifiedCount
+      });
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  }
+
+  // Admin-specific notification methods
+  static async notifyNewMemberRegistration(adminId, memberName) {
+    try {
+      console.log('Creating new member notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'new_member',
+        message: `New member registration: ${memberName}`,
+        user: adminId,
+        priority: 'high',
+        category: 'member'
+      });
+    } catch (error) {
+      console.error('Error creating new member notification:', error);
+      throw error;
+    }
+  }
+
+  static async notifyMemberStatusChange(adminId, memberName, newStatus) {
+    try {
+      console.log('Creating member status notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'member_status',
+        message: `Member ${memberName}'s status changed to ${newStatus}`,
+        user: adminId,
+        priority: 'high',
+        category: 'member'
+      });
+    } catch (error) {
+      console.error('Error creating member status notification:', error);
+      throw error;
+    }
+  }
+
+  static async notifyNewLoanApplication(adminId, memberName, amount) {
+    try {
+      console.log('Creating loan application notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'new_loan',
+        message: `New loan application from ${memberName} for UGX${amount}`,
+        user: adminId,
+        priority: 'high',
+        category: 'loan'
+      });
+    } catch (error) {
+      console.error('Error creating loan application notification:', error);
+      throw error;
+    }
+  }
+
+  static async notifyLargeDeposit(adminId, memberName, amount) {
+    try {
+      console.log('Creating large deposit notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'large_deposit',
+        message: `Large deposit of UGX${amount} from ${memberName}`,
+        user: adminId,
+        priority: 'urgent',
+        category: 'transaction'
+      });
+    } catch (error) {
+      console.error('Error creating large deposit notification:', error);
+      throw error;
+    }
+  }
+
+  static async notifyLargeWithdrawal(adminId, memberName, amount) {
+    try {
+      console.log('Creating large withdrawal notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'large_withdrawal',
+        message: `Large withdrawal of UGX${amount} by ${memberName}`,
+        user: adminId,
+        priority: 'urgent',
+        category: 'transaction'
+      });
+    } catch (error) {
+      console.error('Error creating large withdrawal notification:', error);
+      throw error;
+    }
+  }
+
+  static async notifyUnusualTransaction(adminId, memberName) {
+    try {
+      console.log('Creating unusual transaction notification for admin:', adminId);
+      return await this.createNotification({
+        type: 'unusual_activity',
+        message: `Unusual transaction pattern detected for ${memberName}`,
+        user: adminId,
+        priority: 'urgent',
+        category: 'transaction'
+      });
+    } catch (error) {
+      console.error('Error creating unusual transaction notification:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to notify all admins
+  static async notifyAllAdmins(notificationData) {
+    try {
+      console.log('=== NOTIFY ALL ADMINS ===');
+      console.log('Notification data:', notificationData);
+
+      const admins = await User.find({ role: 'admin' });
+      console.log('Found admins:', admins.length);
+      console.log('Admin IDs:', admins.map(admin => admin._id));
+
+      const notifications = [];
+      for (const admin of admins) {
+        console.log('Creating notification for admin:', admin.email);
+        const notification = await this.createNotification({
+          ...notificationData,
+          user: admin._id
+        });
+        notifications.push(notification);
+        console.log('Notification created for admin:', {
+          admin: admin.email,
+          notificationId: notification._id
+        });
+      }
+
+      console.log('Created notifications for all admins:', notifications.length);
+      return notifications;
+    } catch (error) {
+      console.error('Error notifying all admins:', error);
+      throw error;
+    }
+  }
+
+  // Loan Notifications
+  static async notifyLoanApplication(userId, loanId, amount) {
+    return this.createNotification({
+      type: 'loan_application',
+      message: `Your loan application for UGX${amount} has been submitted successfully`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'medium'
+    });
+  }
+
+  static async notifyLoanApproval(userId, loanId, amount, monthlyPayment) {
+    return this.createNotification({
+      type: 'loan_approved',
+      message: `Congratulations! Your loan application for UGX${amount} has been approved. Monthly payment: UGX${monthlyPayment}`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'high'
+    });
+  }
+
+  static async notifyLoanRejection(userId, loanId, amount, reason) {
+    return this.createNotification({
+      type: 'loan_rejected',
+      message: `Your loan application for UGX${amount} has been rejected. Reason: ${reason}`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'medium'
+    });
+  }
+
+  static async notifyLoanPaymentReminder(userId, loanId, amount, dueDate) {
+    return this.createNotification({
+      type: 'loan_payment_reminder',
+      message: `Reminder: Your loan payment of UGX${amount} is due on ${dueDate}`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  static async notifyLoanPaymentOverdue(userId, loanId, amount) {
+    return this.createNotification({
+      type: 'loan_payment_overdue',
+      message: `URGENT: Your loan payment of UGX${amount} is overdue. Please make the payment immediately`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'urgent',
+      actionRequired: true
+    });
+  }
+
+  // Savings Notifications
+  static async notifySavingsDeposit(userId, savingsId, amount) {
+    return this.createNotification({
+      type: 'savings_deposit',
+      message: `Your deposit of UGX${amount} has been processed successfully`,
+      user: userId,
+      relatedTo: savingsId,
+      onModel: 'Savings',
+      priority: 'medium'
+    });
+  }
+
+  static async notifySavingsWithdrawal(userId, savingsId, amount) {
+    return this.createNotification({
+      type: 'savings_withdrawal',
+      message: `Your withdrawal of UGX${amount} has been processed successfully`,
+      user: userId,
+      relatedTo: savingsId,
+      onModel: 'Savings',
+      priority: 'medium'
+    });
+  }
+
+  static async notifySavingsMilestone(userId, savingsId, amount) {
+    return this.createNotification({
+      type: 'savings_milestone',
+      message: `Congratulations! You've reached a savings milestone of UGX${amount}`,
+      user: userId,
+      relatedTo: savingsId,
+      onModel: 'Savings',
+      priority: 'high'
+    });
+  }
+
+  // Account Notifications
+  static async notifyAccountActivation(userId) {
+    return this.createNotification({
+      type: 'account_activated',
+      message: 'Your account has been activated successfully',
+      user: userId,
+      onModel: 'User',
+      priority: 'high'
+    });
+  }
+
+  static async notifyAccountStatusChange(userId, status) {
+    return this.createNotification({
+      type: 'account_status_change',
+      message: `Your account status has been updated to ${status}`,
+      user: userId,
+      onModel: 'User',
+      priority: 'high'
+    });
+  }
+
+  static async notifyProfileUpdate(userId) {
+    return this.createNotification({
+      type: 'profile_updated',
+      message: 'Your profile has been updated successfully',
+      user: userId,
+      onModel: 'User',
+      priority: 'low'
+    });
+  }
+
+  // System Notifications
+  static async notifySystemUpdate(userId, announcement) {
+    return this.createNotification({
+      type: 'system_update',
+      message: `System Update: ${announcement}`,
+      user: userId,
+      priority: 'medium'
+    });
+  }
+
+  static async notifyMaintenance(userId, details) {
+    return this.createNotification({
+      type: 'maintenance_notice',
+      message: `Scheduled Maintenance: ${details}`,
+      user: userId,
+      priority: 'high'
+    });
+  }
+
+  // Security Notifications
+  static async notifyPasswordChange(userId) {
+    return this.createNotification({
+      type: 'password_changed',
+      message: 'Your password has been changed successfully',
+      user: userId,
+      onModel: 'User',
+      priority: 'high'
+    });
+  }
+
+  static async notifyNewLogin(userId, deviceInfo) {
+    return this.createNotification({
+      type: 'new_login',
+      message: `New login detected from ${deviceInfo}`,
+      user: userId,
+      onModel: 'User',
+      priority: 'high'
+    });
+  }
+
+  // Admin Notifications
+  static async notifyNewMember(adminId, memberName) {
+    return this.createNotification({
+      type: 'new_member',
+      message: `New member registration: ${memberName}`,
+      user: adminId,
+      priority: 'medium'
+    });
+  }
+
+  static async notifyLoanReviewRequired(adminId, amount) {
+    return this.createNotification({
+      type: 'loan_review_required',
+      message: `New loan application requires review: UGX${amount}`,
+      user: adminId,
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  static async notifyPaymentAlert(adminId, memberName, amount) {
+    return this.createNotification({
+      type: 'payment_alert',
+      message: `Payment alert: ${memberName} has made a payment of UGX${amount}`,
+      user: adminId,
+      priority: 'medium'
+    });
+  }
+
+  // Member Management Notifications
+  static async notifyMemberDeactivation(adminId, memberName) {
+    return this.createNotification({
+      type: 'member_deactivation',
+      message: `Member ${memberName} has deactivated their account`,
+      user: adminId,
+      category: 'member_management',
+      priority: 'high'
+    });
+  }
+
+  // Loan Management Notifications
+  static async notifyLoanApprovalRequired(adminId, loanId) {
+    return this.createNotification({
+      type: 'loan_approval_required',
+      message: `Loan application #${loanId} requires your approval`,
+      user: adminId,
+      category: 'loan_management',
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  static async notifyLoanPaymentOverdue(adminId, memberName, amount) {
+    return this.createNotification({
+      type: 'loan_payment_overdue',
+      message: `URGENT: Loan payment overdue for ${memberName} - UGX${amount}`,
+      user: adminId,
+      category: 'loan_management',
+      priority: 'urgent',
+      actionRequired: true
+    });
+  }
+
+  static async notifyLargeLoanRequest(adminId, memberName, amount) {
+    return this.createNotification({
+      type: 'large_loan_request',
+      message: `High-value loan request: UGX${amount} from ${memberName}`,
+      user: adminId,
+      category: 'loan_management',
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  // Financial Notifications
+  static async notifyDailyFinancialSummary(adminId, totalDeposits, totalWithdrawals) {
+    return this.createNotification({
+      type: 'daily_financial_summary',
+      message: `Daily Summary: UGX${totalDeposits} in deposits, UGX${totalWithdrawals} in withdrawals`,
+      user: adminId,
+      category: 'financial',
+      priority: 'low'
+    });
+  }
+
+  // System Notifications
+  static async notifySystemError(adminId, errorDescription) {
+    return this.createNotification({
+      type: 'system_error',
+      message: `System Error: ${errorDescription}`,
+      user: adminId,
+      category: 'system',
+      priority: 'urgent',
+      actionRequired: true
+    });
+  }
+
+  static async notifyDatabaseBackup(adminId, status) {
+    return this.createNotification({
+      type: 'database_backup',
+      message: `Database backup ${status}`,
+      user: adminId,
+      category: 'system',
+      priority: 'medium'
+    });
+  }
+
+  static async notifySystemMaintenance(adminId, hours) {
+    return this.createNotification({
+      type: 'system_maintenance',
+      message: `Scheduled maintenance in ${hours} hours`,
+      user: adminId,
+      category: 'system',
+      priority: 'high'
+    });
+  }
+
+  // Compliance Notifications
+  static async notifyKycDocumentUpdate(adminId, memberName) {
+    return this.createNotification({
+      type: 'kyc_document_update',
+      message: `New KYC documents uploaded by ${memberName}`,
+      user: adminId,
+      category: 'compliance',
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  static async notifyComplianceDeadline(adminId, days) {
+    return this.createNotification({
+      type: 'compliance_deadline',
+      message: `Compliance report due in ${days} days`,
+      user: adminId,
+      category: 'compliance',
+      priority: 'high',
+      actionRequired: true
+    });
+  }
+
+  // Emergency Notifications
+  static async notifyCriticalSystemIssue(adminId, description) {
+    return this.createNotification({
+      type: 'critical_system_issue',
+      message: `CRITICAL: ${description}`,
+      user: adminId,
+      category: 'emergency',
+      priority: 'urgent',
+      actionRequired: true
+    });
+  }
+
+  static async notifySecurityBreach(adminId, details) {
+    return this.createNotification({
+      type: 'security_breach',
+      message: `SECURITY ALERT: ${details}`,
+      user: adminId,
+      category: 'emergency',
+      priority: 'urgent',
+      actionRequired: true
+    });
+  }
+
+  // Staff Management Notifications
+  static async notifyStaffLogin(adminId, staffName, location) {
+    return this.createNotification({
+      type: 'staff_login',
+      message: `Admin ${staffName} logged in from ${location}`,
+      user: adminId,
+      category: 'staff_management',
+      priority: 'low'
+    });
+  }
+
+  static async notifyStaffAction(adminId, staffName, action) {
+    return this.createNotification({
+      type: 'staff_action',
+      message: `Admin ${staffName} ${action}`,
+      user: adminId,
+      category: 'staff_management',
+      priority: 'medium'
+    });
+  }
+
+  static async notifyStaffPerformanceAlert(adminId, staffName, tasks) {
+    return this.createNotification({
+      type: 'staff_performance_alert',
+      message: `Alert: ${staffName} has ${tasks} pending tasks`,
+      user: adminId,
+      category: 'staff_management',
+      priority: 'high',
+      actionRequired: true
+    });
   }
 }
 

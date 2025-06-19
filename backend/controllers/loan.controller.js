@@ -1,7 +1,7 @@
 const Loan = require('../models/Loan');
 const User = require('../models/User');
-const { validationResult } = require('express-validator');
 const NotificationService = require('../services/notificationService');
+const { validationResult } = require('express-validator');
 
 // @desc    Apply for a loan
 // @route   POST /api/loans
@@ -16,26 +16,7 @@ exports.applyForLoan = async (req, res) => {
   }
 
   try {
-    const { amount, purpose, term, collateral, guarantors } = req.body;
-
-    // Check for existing unpaid loans
-    const existingLoan = await Loan.findOne({
-      user: req.user.id,
-      status: { $in: ['pending', 'approved', 'active'] }
-    });
-
-    if (existingLoan) {
-      return res.status(400).json({
-        success: false,
-        error: 'You have an existing unpaid loan. Please clear your current loan before applying for a new one.'
-      });
-    }
-
-    // Calculate loan details
-    const interestRate = 10; // 10% interest rate
-    const totalInterest = (amount * interestRate * term) / 100;
-    const totalPayment = amount + totalInterest;
-    const monthlyPayment = totalPayment / term;
+    const { amount, purpose, term } = req.body;
 
     // Create loan application
     const loan = await Loan.create({
@@ -43,72 +24,30 @@ exports.applyForLoan = async (req, res) => {
       amount,
       purpose,
       term,
-      collateral,
-      guarantors,
-      status: 'pending',
-      interestRate,
-      monthlyPayment,
-      totalPayment,
-      remainingBalance: totalPayment,
-      nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+      status: 'pending'
     });
 
-    // Populate user details for notification
-    await loan.populate('user', 'firstName lastName');
+    // Find all admin users
+    const adminUsers = await User.find({ role: 'admin' });
 
-    // Get admin user
-    const adminUser = await User.findOne({ role: 'admin' });
-    if (!adminUser) {
-      console.error('No admin user found for notification');
+    // Notify all admin users about new loan application
+    for (const admin of adminUsers) {
+      await NotificationService.notifyNewLoanApplication(
+        admin._id,
+        `${req.user.firstName} ${req.user.lastName}`,
+        amount
+      );
     }
 
-    // Create loan application notification
-    console.log('Creating loan application notification...');
-    try {
-      const notification = await NotificationService.createNotification({
-        type: 'loan_application',
-        message: `Your loan application for $${amount} has been received and is pending approval. We will notify you once it's reviewed.`,
-        user: req.user.id,
-        relatedTo: loan._id,
-        onModel: 'Loan',
-        priority: 'high'
-      });
-      console.log('Notification created successfully:', {
-        id: notification._id,
-        type: notification.type,
-        message: notification.message,
-        user: notification.user
-      });
-    } catch (notificationError) {
-      console.error('Error creating loan application notification:', {
-        message: notificationError.message,
-        stack: notificationError.stack,
-        code: notificationError.code,
-        name: notificationError.name
-      });
-      // Continue with the response even if notification fails
-    }
-
-    // Create notification for admin if admin user exists
-    if (adminUser) {
-      try {
-        await NotificationService.createNotification({
-          type: 'loan_application',
-          message: `New loan application from ${loan.user.firstName} ${loan.user.lastName} for $${amount}`,
-          user: adminUser._id,
-          relatedTo: loan._id,
-          onModel: 'Loan',
-          priority: 'high'
-        });
-      } catch (notificationError) {
-        console.error('Error creating admin notification:', {
-          error: notificationError.message,
-          stack: notificationError.stack,
-          code: notificationError.code
-        });
-        // Continue with loan creation even if notification fails
-      }
-    }
+    // Create notification for the applicant
+    await NotificationService.createNotification({
+      type: 'loan_application',
+      message: `Your loan application for $${amount} has been received and is pending approval.`,
+      user: req.user.id,
+      relatedTo: loan._id,
+      onModel: 'Loan',
+      priority: 'high'
+    });
 
     res.status(201).json({
       success: true,
@@ -145,25 +84,24 @@ exports.getMyLoans = async (req, res) => {
   }
 };
 
-// @desc    Get all loans (admin only)
+// @desc    Get all loans
 // @route   GET /api/loans
 // @access  Private/Admin
 exports.getAllLoans = async (req, res) => {
   try {
     const loans = await Loan.find()
-      .populate('user', 'firstName lastName email memberId')
-      .sort({ createdAt: -1 });
-    
+      .populate('user', 'firstName lastName email')
+      .sort('-createdAt');
+
     res.status(200).json({
       success: true,
-      count: loans.length,
       data: loans
     });
   } catch (err) {
-    console.error(err.message);
+    console.error('Error fetching loans:', err);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: err.message || 'Server error'
     });
   }
 };
@@ -181,8 +119,8 @@ exports.updateLoanStatus = async (req, res) => {
   }
 
   try {
-    const { status, rejectionReason } = req.body;
-    const loan = await Loan.findById(req.params.id);
+    const { status, reason } = req.body;
+    const loan = await Loan.findById(req.params.id).populate('user');
 
     if (!loan) {
       return res.status(404).json({
@@ -191,48 +129,40 @@ exports.updateLoanStatus = async (req, res) => {
       });
     }
 
-    // Update loan status
+    const oldStatus = loan.status;
     loan.status = status;
-    
-    if (status === 'approved') {
-      loan.approvedBy = req.user.id;
-      loan.approvedAt = Date.now();
-      
-      // Update user's loan balance
-      const user = await User.findById(loan.user);
-      if (user) {
-        user.loanBalance = (user.loanBalance || 0) + loan.amount;
-        await user.save();
-      }
+    if (reason) loan.rejectionReason = reason;
+    await loan.save();
 
-      // Create approval notification
-      await NotificationService.createNotification({
-        type: 'loan_approval',
-        message: `Your loan application for $${loan.amount} has been approved`,
-        user: loan.user,
-        relatedTo: loan._id,
-        onModel: 'Loan',
-        priority: 'high'
-      });
-    } else if (status === 'rejected') {
-      loan.rejectionReason = rejectionReason;
+    // Find all admin users
+    const adminUsers = await User.find({ role: 'admin' });
 
-      // Create rejection notification
+    // Notify all admin users about loan status change
+    for (const admin of adminUsers) {
       await NotificationService.createNotification({
-        type: 'loan_rejection',
-        message: `Your loan application for $${loan.amount} has been rejected. Reason: ${rejectionReason}`,
-        user: loan.user,
+        type: 'loan_status_change',
+        message: `Loan #${loan._id} status changed from ${oldStatus} to ${status}`,
+        user: admin._id,
         relatedTo: loan._id,
         onModel: 'Loan',
         priority: 'high'
       });
     }
 
-    await loan.save();
+    // Create notification for the loan applicant
+    let message = `Your loan application status has been updated to ${status}`;
+    if (status === 'rejected' && reason) {
+      message += `. Reason: ${reason}`;
+    }
 
-    // Populate user and approver details
-    await loan.populate('user', 'firstName lastName email memberId');
-    await loan.populate('approvedBy', 'firstName lastName');
+    await NotificationService.createNotification({
+      type: 'loan_status_change',
+      message,
+      user: loan.user._id,
+      relatedTo: loan._id,
+      onModel: 'Loan',
+      priority: 'high'
+    });
 
     res.status(200).json({
       success: true,

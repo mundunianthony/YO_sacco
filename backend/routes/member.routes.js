@@ -14,8 +14,8 @@ const router = express.Router();
 router.get('/profile', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
-    res.status(200).json({
-      success: true,
+  res.status(200).json({
+    success: true,
       data: user
     });
   } catch (error) {
@@ -344,8 +344,8 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
     user.loanBalance = Math.max(0, user.loanBalance - amount);
     await user.save();
 
-    res.status(200).json({
-      success: true,
+  res.status(200).json({
+    success: true,
       data: {
         transaction,
         loan

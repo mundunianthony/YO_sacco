@@ -3,27 +3,30 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
-    required: true,
+    required: [true, 'Notification type is required'],
     enum: [
-      'loan_application',
-      'loan_approval',
-      'loan_rejection',
-      'loan_payment',
+      'new_member',
+      'member_status',
+      'new_loan',
+      'loan_status',
+      'large_deposit',
+      'large_withdrawal',
+      'unusual_activity',
+      'system',
+      'transaction',
+      'general',
       'savings_deposit',
-      'savings_withdrawal',
-      'member_registration',
-      'member_status_change',
-      'system_alert'
+      'savings_withdrawal'
     ]
   },
   message: {
     type: String,
-    required: true
+    required: [true, 'Notification message is required']
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: [true, 'User ID is required']
   },
   relatedTo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -31,22 +34,33 @@ const notificationSchema = new mongoose.Schema({
   },
   onModel: {
     type: String,
-    enum: ['Loan', 'Transaction', 'User']
+    enum: ['User', 'Loan', 'Transaction', 'Savings']
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
+  },
+  category: {
+    type: String,
+    enum: ['member', 'loan', 'transaction', 'system', 'general'],
+    default: 'general'
   },
   read: {
     type: Boolean,
     default: false
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high'],
-    default: 'medium'
   }
 }, {
   timestamps: true
 });
 
-// Index for faster queries
-notificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+// Create indexes for better query performance
+notificationSchema.index({ user: 1, createdAt: -1 });
+notificationSchema.index({ user: 1, read: 1 });
+notificationSchema.index({ type: 1 });
+notificationSchema.index({ category: 1 });
+notificationSchema.index({ priority: 1 });
 
-module.exports = mongoose.model('Notification', notificationSchema); 
+const Notification = mongoose.model('Notification', notificationSchema);
+
+module.exports = Notification; 

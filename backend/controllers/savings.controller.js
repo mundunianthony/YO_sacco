@@ -52,27 +52,10 @@ exports.makeDeposit = async (req, res) => {
     // Create deposit notification
     console.log('Creating deposit notification...');
     try {
-      const notification = await NotificationService.createNotification({
-        type: 'savings_deposit',
-        message: `Your deposit of $${amount} has been received and is pending approval. We will notify you once it's approved.`,
-        user: req.user.id,
-        relatedTo: transaction._id,
-        onModel: 'Transaction',
-        priority: 'medium'
-      });
-      console.log('Notification created successfully:', {
-        id: notification._id,
-        type: notification.type,
-        message: notification.message,
-        user: notification.user
-      });
+      await NotificationService.notifySavingsDeposit(user._id, transaction._id, amount);
+      console.log('Notification created successfully for deposit');
     } catch (notificationError) {
-      console.error('Error creating deposit notification:', {
-        message: notificationError.message,
-        stack: notificationError.stack,
-        code: notificationError.code,
-        name: notificationError.name
-      });
+      console.error('Error creating deposit notification:', notificationError);
       // Continue with the response even if notification fails
     }
 
@@ -131,7 +114,10 @@ exports.makeWithdrawal = async (req, res) => {
       type: 'withdrawal',
       amount,
       paymentMethod,
-      status: 'completed'
+      status: 'completed',
+      balanceAfter: user.savingsBalance - amount,
+      category: 'savings',
+      description: 'Savings withdrawal'
     });
     console.log('Transaction created:', transaction._id);
 
@@ -143,27 +129,10 @@ exports.makeWithdrawal = async (req, res) => {
     // Create withdrawal notification
     console.log('Creating withdrawal notification...');
     try {
-      const notification = await NotificationService.createNotification({
-        type: 'savings_withdrawal',
-        message: `Your withdrawal request of $${amount} has been received and is pending approval. We will notify you once it's approved.`,
-        user: req.user.id,
-        relatedTo: transaction._id,
-        onModel: 'Transaction',
-        priority: 'medium'
-      });
-      console.log('Notification created successfully:', {
-        id: notification._id,
-        type: notification.type,
-        message: notification.message,
-        user: notification.user
-      });
+      await NotificationService.notifySavingsWithdrawal(user._id, transaction._id, amount);
+      console.log('Notification created successfully for withdrawal');
     } catch (notificationError) {
-      console.error('Error creating withdrawal notification:', {
-        message: notificationError.message,
-        stack: notificationError.stack,
-        code: notificationError.code,
-        name: notificationError.name
-      });
+      console.error('Error creating withdrawal notification:', notificationError);
       // Continue with the response even if notification fails
     }
 

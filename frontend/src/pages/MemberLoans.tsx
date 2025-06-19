@@ -132,7 +132,7 @@ const MemberLoans = () => {
 
       toast({
         title: "Payment Successful",
-        description: `$${amount.toLocaleString()} has been applied to your loan`,
+        description: `UGX${amount.toLocaleString()} has been applied to your loan`,
       });
 
       setPaymentData({ amount: "", paymentMethod: "cash" });
@@ -208,7 +208,7 @@ const MemberLoans = () => {
               <form onSubmit={handleLoanApplication} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="amount">Loan Amount ($)</Label>
+                    <Label htmlFor="amount">Loan Amount (UGX)</Label>
                     <Input
                       id="amount"
                       type="number"
@@ -338,15 +338,15 @@ const MemberLoans = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Amount</p>
-                    <p className="font-medium">${loan.amount.toLocaleString()}</p>
+                    <p className="font-medium">UGX{loan.amount.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Monthly Payment</p>
-                    <p className="font-medium">${loan.monthlyPayment.toLocaleString()}</p>
+                    <p className="font-medium">UGX{loan.monthlyPayment.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Remaining Balance</p>
-                    <p className="font-medium">${loan.remainingBalance.toLocaleString()}</p>
+                    <p className="font-medium">UGX{loan.remainingBalance.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Next Payment</p>
@@ -385,7 +385,7 @@ const MemberLoans = () => {
             </DialogHeader>
             <form onSubmit={handleLoanPayment} className="space-y-4">
               <div>
-                <Label htmlFor="payment-amount">Amount ($)</Label>
+                <Label htmlFor="payment-amount">Amount (UGX)</Label>
                 <Input
                   id="payment-amount"
                   type="number"
@@ -397,7 +397,7 @@ const MemberLoans = () => {
                   required
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Maximum: ${selectedLoan?.remainingBalance.toLocaleString()}
+                  Maximum: UGX{selectedLoan?.remainingBalance.toLocaleString()}
                 </p>
               </div>
               <Button type="submit" className="w-full">

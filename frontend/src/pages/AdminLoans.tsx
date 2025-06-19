@@ -144,7 +144,7 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>${loan.amount.toLocaleString()}</TableCell>
+                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
                         <TableCell>{loan.purpose}</TableCell>
                         <TableCell>{loan.term} months</TableCell>
                         <TableCell>
@@ -204,8 +204,8 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>${loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>${loan.remainingBalance.toLocaleString()}</TableCell>
+                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
+                        <TableCell>UGX{loan.remainingBalance.toLocaleString()}</TableCell>
                         <TableCell>
                           {loan.nextPaymentDate
                             ? new Date(loan.nextPaymentDate).toLocaleDateString()
