@@ -145,7 +145,7 @@ const MemberProfile = () => {
             </CardHeader>
             <CardContent>
               {isEditing ? (
-                <form onSubmit={handleProfileUpdate} className="space-y-4">
+                <form onSubmit={handleProfileUpdate} className="space-y-4 max-w-md w-full">
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       <Label htmlFor="name">Full Name</Label>
@@ -153,7 +153,7 @@ const MemberProfile = () => {
                         id="name"
                         value={profileData.name}
                         onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                        className={isEditing ? "" : "bg-muted"}
+                        className={`w-full h-12 px-4 py-3 ${isEditing ? "" : "bg-muted"}`}
                       />
                     </div>
                     <div>
@@ -165,7 +165,7 @@ const MemberProfile = () => {
                           type="email"
                           value={profileData.email}
                           onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                          className={`w-full h-12 px-4 py-3 pl-10 ${isEditing ? "" : "bg-muted"}`}
                         />
                       </div>
                     </div>
@@ -177,7 +177,7 @@ const MemberProfile = () => {
                           id="phone"
                           value={profileData.phone}
                           onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                          className={`w-full h-12 px-4 py-3 pl-10 ${isEditing ? "" : "bg-muted"}`}
                         />
                       </div>
                     </div>
@@ -189,7 +189,7 @@ const MemberProfile = () => {
                           id="address"
                           value={profileData.address}
                           onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                          className={`w-full h-12 px-4 py-3 pl-10 ${isEditing ? "" : "bg-muted"}`}
                         />
                       </div>
                     </div>
@@ -202,7 +202,7 @@ const MemberProfile = () => {
                           type="date"
                           value={profileData.dob ? profileData.dob.split('T')[0] : ""}
                           onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
-                          className={`pl-10 ${isEditing ? "" : "bg-muted"}`}
+                          className={`w-full h-12 px-4 py-3 pl-10 ${isEditing ? "" : "bg-muted"}`}
                         />
                       </div>
                     </div>
@@ -211,7 +211,7 @@ const MemberProfile = () => {
                       <Input
                         value={profileData.memberId}
                         disabled
-                        className="bg-muted"
+                        className="w-full h-12 px-4 py-3 bg-muted"
                       />
                     </div>
                   </div>

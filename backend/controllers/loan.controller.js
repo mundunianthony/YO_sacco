@@ -18,6 +18,27 @@ exports.applyForLoan = async (req, res) => {
   try {
     const { amount, purpose, term } = req.body;
 
+    // Fetch user
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Rule 1: Minimum savings
+    if ((user.savingsBalance || 0) < 10000) {
+      return res.status(400).json({ success: false, error: 'You must have at least UGX 10,000 in savings to qualify for a loan.' });
+    }
+
+    // Rule 2: Max loan is 3x savings
+    if (amount > 3 * (user.savingsBalance || 0)) {
+      return res.status(400).json({ success: false, error: 'You can only borrow up to 3 times your savings balance.' });
+    }
+
+    // Rule 3: Loan privilege suspension
+    if (user.loanPrivilegeSuspended && user.loanPrivilegeSuspendedUntil && user.loanPrivilegeSuspendedUntil > new Date()) {
+      return res.status(403).json({ success: false, error: `You are temporarily suspended from applying for new loans until ${user.loanPrivilegeSuspendedUntil.toLocaleDateString()}.` });
+    }
+
     // Create loan application
     const loan = await Loan.create({
       user: req.user.id,
@@ -42,7 +63,7 @@ exports.applyForLoan = async (req, res) => {
     // Create notification for the applicant
     await NotificationService.createNotification({
       type: 'loan_application',
-      message: `Your loan application for $${amount} has been received and is pending approval.`,
+      message: `Your loan application for UGX${amount} has been received and is pending approval.`,
       user: req.user.id,
       relatedTo: loan._id,
       onModel: 'Loan',
@@ -220,6 +241,24 @@ exports.makeLoanPayment = async (req, res) => {
     if (loan.remainingBalance <= 0) {
       loan.status = 'paid';
       loan.remainingBalance = 0;
+
+      // Check if loan was overdue
+      const now = new Date();
+      let overdue = false;
+      if (loan.term && loan.createdAt) {
+        const expectedEndDate = new Date(loan.createdAt);
+        expectedEndDate.setMonth(expectedEndDate.getMonth() + loan.term);
+        if (now > expectedEndDate) {
+          overdue = true;
+        }
+      }
+      if (overdue) {
+        // Suspend loan privilege for 1 month
+        const user = await User.findById(loan.user);
+        user.loanPrivilegeSuspended = true;
+        user.loanPrivilegeSuspendedUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        await user.save();
+      }
     }
 
     await loan.save();
@@ -229,7 +268,7 @@ exports.makeLoanPayment = async (req, res) => {
     try {
       const notification = await NotificationService.createNotification({
         type: 'loan_payment',
-        message: `Your loan payment of $${amount} has been received and is being processed. We will notify you once it's confirmed.`,
+        message: `Your loan payment of UGX${amount} has been received and is being processed. We will notify you once it's confirmed.`,
         user: req.user.id,
         relatedTo: loan._id,
         onModel: 'Loan',

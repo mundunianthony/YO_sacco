@@ -73,6 +73,13 @@ const UserSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  loanPrivilegeSuspended: {
+    type: Boolean,
+    default: false
+  },
+  loanPrivilegeSuspendedUntil: {
+    type: Date
   }
 });
 
