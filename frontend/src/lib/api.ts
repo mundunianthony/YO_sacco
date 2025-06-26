@@ -48,8 +48,10 @@ export const memberApi = {
 
   // Savings
   getSavings: () => api.get('/members/savings'),
-  makeDeposit: (data: { amount: number; paymentMethod: string }) =>
+  makeDeposit: (data: { amount: number; paymentMethod: string; phone_number: string }) =>
     api.post('/members/savings/deposit', data),
+  validateDepositOtp: (data: { flw_ref: string; otp: string; amount: number; paymentMethod: string; phone_number: string }) =>
+    api.post('/members/savings/deposit/validate-otp', data),
   makeWithdrawal: (data: { amount: number; paymentMethod: string }) =>
     api.post('/members/savings/withdraw', data),
 

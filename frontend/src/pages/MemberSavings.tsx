@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Plus, Minus } from "lucide-react";
 import { memberApi } from "@/lib/api";
@@ -29,6 +29,10 @@ const MemberSavings = () => {
   const [loading, setLoading] = useState(true);
   const [savingsData, setSavingsData] = useState<SavingsData | null>(null);
   const { toast } = useToast();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [pendingOtp, setPendingOtp] = useState<{ flw_ref: string; amount: number; phone_number: string } | null>(null);
 
   const fetchSavingsData = async () => {
     try {
@@ -61,24 +65,72 @@ const MemberSavings = () => {
         });
         return;
       }
-
-      await memberApi.makeDeposit({
+      if (!phoneNumber) {
+        toast({
+          title: "Missing Info",
+          description: "Phone number is required for MTN Mobile Money",
+          variant: "destructive",
+        });
+        return;
+      }
+      const depositData = {
         amount,
-        paymentMethod: 'cash', // You might want to add a payment method selector
-      });
-
+        paymentMethod: "mtn_mobile_money",
+        phone_number: phoneNumber,
+      };
+      const response = await memberApi.makeDeposit(depositData);
+      if (response.data.otp_required) {
+        setPendingOtp({
+          flw_ref: response.data.flw_ref,
+          amount,
+          phone_number: phoneNumber,
+        });
+        setOtpDialogOpen(true);
+        return;
+      }
       toast({
         title: "Deposit Successful",
         description: `UGX${amount.toLocaleString()} has been added to your savings`,
       });
-      
       setDepositAmount("");
+      setPhoneNumber("");
       setIsDepositOpen(false);
-      fetchSavingsData(); // Refresh data
-    } catch (error) {
+      fetchSavingsData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to process deposit",
+        description: error?.response?.data?.error || "Failed to process deposit",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingOtp) return;
+    try {
+      const response = await memberApi.validateDepositOtp({
+        flw_ref: pendingOtp.flw_ref,
+        otp,
+        amount: pendingOtp.amount,
+        paymentMethod: "mtn_mobile_money",
+        phone_number: pendingOtp.phone_number,
+      });
+      toast({
+        title: "Deposit Successful",
+        description: `UGX${pendingOtp.amount.toLocaleString()} has been added to your savings`,
+      });
+      setOtp("");
+      setOtpDialogOpen(false);
+      setPendingOtp(null);
+      setDepositAmount("");
+      setPhoneNumber("");
+      setIsDepositOpen(false);
+      fetchSavingsData();
+    } catch (error: any) {
+      toast({
+        title: "OTP Error",
+        description: error?.response?.data?.error || "Failed to validate OTP",
         variant: "destructive",
       });
     }
@@ -192,6 +244,17 @@ const MemberSavings = () => {
                           required
                         />
                       </div>
+                      <div>
+                        <Label htmlFor="phone-number">Phone Number</Label>
+                        <Input
+                          id="phone-number"
+                          type="tel"
+                          placeholder="e.g. 2567XXXXXXXX"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          required
+                        />
+                      </div>
                       <Button type="submit" className="w-full">
                         Confirm Deposit
                       </Button>
@@ -285,6 +348,32 @@ const MemberSavings = () => {
           </Card>
         </div>
       </div>
+      <Dialog open={otpDialogOpen} onOpenChange={setOtpDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter OTP</DialogTitle>
+            <DialogDescription>
+              Please enter the OTP sent to your phone to complete the deposit.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleOtpSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="otp">OTP</Label>
+              <Input
+                id="otp"
+                type="text"
+                placeholder="Enter OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full">Submit OTP</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

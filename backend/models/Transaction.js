@@ -45,7 +45,7 @@ const TransactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque'],
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'mtn_mobile_money'],
     required: true
   },
   receiptNumber: {

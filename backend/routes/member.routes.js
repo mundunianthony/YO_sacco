@@ -191,6 +191,11 @@ router.post('/savings/deposit', authenticate, savingsController.makeDeposit);
 // @access  Private
 router.post('/savings/withdraw', authenticate, savingsController.makeWithdrawal);
 
+// @desc    Validate deposit OTP
+// @route   POST /api/members/savings/deposit/validate-otp
+// @access  Private
+router.post('/savings/deposit/validate-otp', authenticate, savingsController.validateDepositOtp);
+
 // @desc    Get member loans
 // @route   GET /api/members/loans
 // @access  Private
