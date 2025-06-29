@@ -223,7 +223,7 @@ class NotificationService {
     // Notify admins about withdrawal request
     const adminUsers = await User.find({ role: 'admin' });
     const user = await User.findById(userId);
-    
+
     for (const admin of adminUsers) {
       await this.createNotification({
         type: 'withdrawal_request',
@@ -320,10 +320,34 @@ class NotificationService {
     });
   }
 
+  static async notifyLoanPaymentMade(adminId, memberName, amount, loanNumber, loanId) {
+    return this.createNotification({
+      type: 'loan_payment_made',
+      message: `${memberName} made a loan payment of UGX${amount.toLocaleString()} for loan #${loanNumber}`,
+      user: adminId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'medium',
+      category: 'loan'
+    });
+  }
+
+  static async notifyLoanPaymentSuccessful(userId, amount, remainingBalance, loanId) {
+    return this.createNotification({
+      type: 'loan_payment_successful',
+      message: `Your loan payment of UGX${amount.toLocaleString()} has been processed successfully. Remaining balance: UGX${remainingBalance.toLocaleString()}`,
+      user: userId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'high',
+      category: 'loan'
+    });
+  }
+
   // Clean up old notifications (older than 30 days)
   static async cleanupOldNotifications() {
     console.log('=== CLEANING UP OLD NOTIFICATIONS ===');
-    
+
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

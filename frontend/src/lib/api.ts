@@ -62,7 +62,7 @@ export const memberApi = {
     collateral?: string;
     guarantors?: string[];
   }) => api.post('/members/loans', data),
-  makeLoanPayment: (loanId: string, data: { amount: number; paymentMethod: string }) =>
+  makeLoanPayment: (loanId: string, data: { amount: number }) =>
     api.post(`/members/loans/${loanId}/payment`, data),
 
   getAllMembers: () => api.get('/members/all'),

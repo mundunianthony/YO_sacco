@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Plus, DollarSign, CheckCircle, X } from "lucide-react";
+import { CreditCard, Plus, DollarSign, CheckCircle, X, Wallet } from "lucide-react";
 import { memberApi, adminApi } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -44,12 +44,23 @@ interface Member {
   role: string;
 }
 
+interface UserProfile {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  memberId: string;
+  savingsBalance: number;
+  loanBalance: number;
+}
+
 const MemberLoans = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const { toast } = useToast();
 
   const [loanApplication, setLoanApplication] = useState({
@@ -62,7 +73,6 @@ const MemberLoans = () => {
 
   const [paymentData, setPaymentData] = useState({
     amount: "",
-    paymentMethod: "cash",
     paymentType: "partial", // partial or full
   });
 
@@ -110,8 +120,18 @@ const MemberLoans = () => {
     }
   };
 
+  const fetchUserProfile = async () => {
+    try {
+      const response = await memberApi.getProfile();
+      setUserProfile(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+    }
+  };
+
   useEffect(() => {
     fetchLoans();
+    fetchUserProfile();
     // Fetch members for guarantor selection
     const fetchMembers = async () => {
       try {
@@ -170,7 +190,7 @@ const MemberLoans = () => {
 
   const handleLoanPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLoan) return;
+    if (!selectedLoan || !userProfile) return;
 
     try {
       let amount = parseFloat(paymentData.amount);
@@ -189,7 +209,18 @@ const MemberLoans = () => {
         return;
       }
 
-      if (amount > selectedLoan.remainingBalance) {
+      // Ensure amount is an integer (no decimals)
+      const paymentAmount = Math.floor(amount);
+      if (paymentAmount !== amount) {
+        toast({
+          title: "Invalid Amount",
+          description: "Amount must be a whole number (no decimals)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (paymentAmount > selectedLoan.remainingBalance) {
         toast({
           title: "Amount Too High",
           description: "Payment amount cannot exceed remaining balance",
@@ -198,24 +229,33 @@ const MemberLoans = () => {
         return;
       }
 
+      if (paymentAmount > userProfile.savingsBalance) {
+        toast({
+          title: "Insufficient Savings",
+          description: "You don't have enough money in your savings account. Please add money to your savings first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await memberApi.makeLoanPayment(selectedLoan._id, {
-        amount,
-        paymentMethod: paymentData.paymentMethod,
+        amount: paymentAmount,
       });
 
       toast({
         title: "Payment Successful",
-        description: `UGX${amount.toLocaleString()} has been applied to your loan${amount === selectedLoan.remainingBalance ? '. Your loan is now cleared!' : ''}`,
+        description: `UGX${paymentAmount.toLocaleString()} has been deducted from your savings and applied to your loan${paymentAmount === selectedLoan.remainingBalance ? '. Your loan is now cleared!' : ''}`,
       });
 
-      setPaymentData({ amount: "", paymentMethod: "cash", paymentType: "partial" });
+      setPaymentData({ amount: "", paymentType: "partial" });
       setIsPaymentOpen(false);
       setSelectedLoan(null);
       fetchLoans();
-    } catch (error) {
+      fetchUserProfile(); // Refresh user profile to get updated savings balance
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to process payment",
+        description: error.response?.data?.error || "Failed to process payment",
         variant: "destructive",
       });
     }
@@ -402,6 +442,26 @@ const MemberLoans = () => {
           </Dialog>
         </div>
 
+        {/* Savings Balance Card */}
+        {userProfile && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Available Savings Balance</p>
+                    <p className="text-lg font-bold text-blue-900">UGX{userProfile.savingsBalance.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-blue-600">Loan payments will be deducted from your savings</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {hasActiveLoan && (
           <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="pt-6">
@@ -514,10 +574,20 @@ const MemberLoans = () => {
             <DialogHeader>
               <DialogTitle>Make Loan Payment</DialogTitle>
               <DialogDescription>
-                Enter payment details for Loan #{selectedLoan?.loanNumber}
+                Payment will be deducted from your savings account
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleLoanPayment} className="space-y-4">
+              {/* Savings Balance Info */}
+              {userProfile && (
+                <div className="p-3 bg-blue-50 rounded-md">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-700">Available Savings:</span>
+                    <span className="font-medium text-blue-900">UGX{userProfile.savingsBalance.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+              
               <div>
                 <Label htmlFor="paymentType">Payment Type</Label>
                 <Select
@@ -540,29 +610,23 @@ const MemberLoans = () => {
                     id="paymentAmount"
                     type="number"
                     min="1"
-                    step="100"
+                    step="1"
+                    placeholder="Enter whole number amount"
                     value={paymentData.amount}
-                    onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                    onChange={(e) => {
+                      // Only allow integers
+                      const value = e.target.value;
+                      if (value === '' || /^\d+$/.test(value)) {
+                        setPaymentData({ ...paymentData, amount: value });
+                      }
+                    }}
                     required
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter a whole number amount (no decimals)
+                  </p>
                 </div>
               )}
-              <div>
-                <Label htmlFor="paymentMethod">Payment Method</Label>
-                <Select
-                  value={paymentData.paymentMethod}
-                  onValueChange={(value) => setPaymentData({ ...paymentData, paymentMethod: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <Button type="submit" className="w-full">
                 Process Payment
               </Button>

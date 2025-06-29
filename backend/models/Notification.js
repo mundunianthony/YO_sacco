@@ -26,6 +26,8 @@ const notificationSchema = new mongoose.Schema({
       'loan_rejection',
       'loan_payment_reminder',
       'loan_payment_overdue',
+      'loan_payment_made',
+      'loan_payment_successful',
       'savings_milestone',
       'account_activated',
       'account_status_change',
@@ -77,7 +79,7 @@ const notificationSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['member', 'loan', 'transaction', 'system', 'general'],
+    enum: ['member', 'loan', 'transaction', 'system', 'general', 'savings', 'withdrawal'],
     default: 'general'
   },
   read: {

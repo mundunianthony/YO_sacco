@@ -305,72 +305,256 @@ router.post('/loans', authenticate, [
 // @route   POST /api/members/loans/:id/payment
 // @access  Private
 router.post('/loans/:id/payment', authenticate, async (req, res) => {
+  console.log('=== LOAN PAYMENT ROUTE STARTED ===');
+  console.log('Request params:', req.params);
+  console.log('Request body:', req.body);
+  console.log('User from auth:', req.user);
+
   try {
-    const { amount, paymentMethod } = req.body;
+    const { amount } = req.body;
+
+    console.log('Extracted amount:', amount);
+    console.log('Amount type:', typeof amount);
+
+    // Validate amount
+    if (!amount || isNaN(amount) || amount <= 0) {
+      console.log('Amount validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a valid positive amount'
+      });
+    }
+
+    // Ensure amount is an integer (no decimals)
+    const paymentAmount = Math.floor(Number(amount));
+    if (paymentAmount !== Number(amount)) {
+      console.log('Integer validation failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Amount must be a whole number (no decimals)'
+      });
+    }
+
+    // Additional validation for reasonable amount
+    if (paymentAmount > 1000000000) { // 1 billion UGX limit
+      console.log('Amount too high');
+      return res.status(400).json({
+        success: false,
+        error: 'Payment amount is too high'
+      });
+    }
+
+    console.log('Processing loan payment:', {
+      loanId: req.params.id,
+      userId: req.user.id,
+      amount: paymentAmount
+    });
+
+    console.log('About to find loan...');
     const loan = await Loan.findOne({
       _id: req.params.id,
       user: req.user.id
     });
 
+    console.log('Loan query result:', loan ? 'Found' : 'Not found');
+
     if (!loan) {
+      console.log('Loan not found');
       return res.status(404).json({
         success: false,
         error: 'Loan not found'
       });
     }
 
+    console.log('Loan found:', {
+      loanId: loan._id,
+      status: loan.status,
+      remainingBalance: loan.remainingBalance
+    });
+
     if (loan.status !== 'active') {
+      console.log('Loan not active');
       return res.status(400).json({
         success: false,
         error: 'Loan is not active'
       });
     }
 
-    if (amount > loan.remainingBalance) {
+    if (paymentAmount > loan.remainingBalance) {
+      console.log('Payment amount exceeds remaining balance');
       return res.status(400).json({
         success: false,
         error: 'Payment amount exceeds remaining balance'
       });
     }
 
+    console.log('About to find user...');
     const user = await User.findById(req.user.id);
-    const newBalance = loan.remainingBalance - amount;
+    console.log('User query result:', user ? 'Found' : 'Not found');
 
-    // Create transaction
-    const transaction = await Transaction.create({
-      user: req.user.id,
-      type: 'loan_payment',
-      amount,
-      description: 'Loan payment',
-      status: 'completed',
-      category: 'loan',
-      paymentMethod,
-      balanceAfter: newBalance
+    if (!user) {
+      console.log('User not found');
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    console.log('User found:', {
+      userId: user._id,
+      savingsBalance: user.savingsBalance,
+      loanBalance: user.loanBalance
     });
 
-    // Update loan
-    loan.remainingBalance = newBalance;
-    if (newBalance === 0) {
-      loan.status = 'paid';
+    // Check if user has sufficient savings balance
+    if ((user.savingsBalance || 0) < paymentAmount) {
+      console.log('Insufficient savings balance');
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient savings balance. Please add money to your savings account first.'
+      });
     }
-    loan.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
-    await loan.save();
 
-    // Update user loan balance
-    user.loanBalance = Math.max(0, user.loanBalance - amount);
+    const newLoanBalance = loan.remainingBalance - paymentAmount;
+    const newSavingsBalance = user.savingsBalance - paymentAmount;
+
+    console.log('Calculated balances:', {
+      newLoanBalance,
+      newSavingsBalance
+    });
+
+    console.log('About to create loan transaction...');
+    // Create transaction for loan payment
+    const loanTransaction = await Transaction.create({
+      user: req.user.id,
+      type: 'loan_payment',
+      amount: paymentAmount,
+      description: `Loan payment for loan #${loan.loanNumber || loan._id}`,
+      status: 'completed',
+      category: 'loan',
+      paymentMethod: 'savings_deduction',
+      balanceAfter: newLoanBalance,
+      loan: loan._id
+    });
+
+    console.log('Loan transaction created:', loanTransaction._id);
+
+    console.log('About to create savings transaction...');
+    // Create transaction for savings deduction
+    const savingsTransaction = await Transaction.create({
+      user: req.user.id,
+      type: 'withdrawal',
+      amount: paymentAmount,
+      description: `Deduction for loan payment - loan #${loan.loanNumber || loan._id}`,
+      status: 'completed',
+      category: 'savings',
+      paymentMethod: 'savings_deduction',
+      balanceAfter: newSavingsBalance
+    });
+
+    console.log('Savings transaction created:', savingsTransaction._id);
+
+    console.log('About to update loan...');
+    // Update loan
+    loan.remainingBalance = newLoanBalance;
+
+    // Ensure paymentHistory is an array
+    if (!loan.paymentHistory) {
+      loan.paymentHistory = [];
+    }
+
+    loan.paymentHistory.push({
+      amount: paymentAmount,
+      date: new Date(),
+      receiptNumber: loanTransaction.receiptNumber,
+      transaction: loanTransaction._id
+    });
+
+    if (newLoanBalance === 0) {
+      loan.status = 'paid';
+      loan.lastPaymentDate = new Date();
+    } else {
+      loan.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    }
+
+    await loan.save();
+    console.log('Loan updated successfully');
+
+    console.log('About to update user balances...');
+    // Update user balances
+    user.savingsBalance = newSavingsBalance;
+    user.loanBalance = Math.max(0, user.loanBalance - paymentAmount);
     await user.save();
+    console.log('User balances updated');
+
+    console.log('About to send admin notifications...');
+    // Notify admins about the loan payment
+    try {
+      await NotificationService.notifyAllAdmins({
+        type: 'loan_payment_made',
+        message: `${user.firstName} ${user.lastName} made a loan payment of UGX${paymentAmount.toLocaleString()} for loan #${loan.loanNumber || loan._id}`,
+        relatedTo: loan._id,
+        onModel: 'Loan',
+        priority: 'medium',
+        category: 'loan'
+      });
+      console.log('Admin notifications sent');
+    } catch (notificationError) {
+      console.error('Error creating admin notification:', notificationError);
+      // Continue with the response even if notification fails
+    }
+
+    console.log('About to send user notification...');
+    // Notify user about successful payment
+    try {
+      await NotificationService.notifyLoanPaymentSuccessful(
+        req.user.id,
+        paymentAmount,
+        newLoanBalance,
+        loan._id
+      );
+      console.log('User notification sent');
+    } catch (notificationError) {
+      console.error('Error creating user notification:', notificationError);
+    }
+
+    console.log('Payment processed successfully');
 
     res.status(200).json({
       success: true,
       data: {
-        transaction,
-        loan
+        loanTransaction,
+        savingsTransaction,
+        loan,
+        newSavingsBalance: user.savingsBalance,
+        newLoanBalance: loan.remainingBalance
       }
     });
   } catch (error) {
+    console.error('=== LOAN PAYMENT ERROR ===');
+    console.error('Error processing loan payment:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+
+    // Check for specific error types
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error: ' + Object.values(error.errors).map(e => e.message).join(', ')
+      });
+    }
+
+    if (error.name === 'MongoError' && error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Duplicate entry error. Please try again.'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      error: 'Server Error'
+      error: 'Server Error: ' + error.message
     });
   }
 });
