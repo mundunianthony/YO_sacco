@@ -17,6 +17,7 @@ const {
 } = require('../controllers/admin.controller');
 const { approveWithdrawal } = require('../controllers/savings.controller');
 const User = require('../models/User');
+const NotificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -133,9 +134,6 @@ router.post('/members/:id/reminder', authenticate, authorize('admin'), [
         error: 'Admin not found'
       });
     }
-
-    // Create notification for the member
-    const NotificationService = require('../services/notificationService');
 
     // Handle admin name with fallback
     const adminFirstName = admin.firstName || 'Admin';

@@ -39,8 +39,8 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a phone number'],
     match: [
-      /^\+?[\d\s-]{10,}$/,
-      'Please add a valid phone number'
+      /^0\d{9}$/,
+      'Phone number must start with 0 and be exactly 10 digits (e.g., 0712345678)'
     ]
   },
   address: {
@@ -84,9 +84,9 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt timestamp before saving
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   this.updatedAt = Date.now();
-  
+
   if (!this.isModified('password')) {
     next();
     return;
@@ -97,7 +97,7 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Generate member ID before saving
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   if (this.isNew) {
     const count = await this.constructor.countDocuments();
     this.memberId = `M${String(count + 1).padStart(6, '0')}`;
@@ -106,14 +106,14 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Sign JWT and return
-UserSchema.methods.getSignedJwtToken = function() {
+UserSchema.methods.getSignedJwtToken = function () {
   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE
   });
 };
 
 // Match user entered password to hashed password in database
-UserSchema.methods.matchPassword = async function(enteredPassword) {
+UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
