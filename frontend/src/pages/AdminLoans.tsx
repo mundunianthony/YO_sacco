@@ -31,6 +31,8 @@ interface Loan {
   monthlyPayment: number;
   totalPayment: number;
   remainingBalance: number;
+  totalPaidAmount: number;
+  paymentProgress: number;
   nextPaymentDate: string;
   lastPaymentDate: string;
   approvedBy?: {
@@ -148,9 +150,17 @@ const AdminLoans = () => {
     }
   };
 
-  const handleActivateLoan = async (loanId: string) => {
+  const handleActivateLoan = async (loan: Loan) => {
+    if (loan.status !== 'approved') {
+      toast({
+        title: "Error",
+        description: "Only approved loans can be activated.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
-      await adminApi.updateLoanStatus(loanId, { status: 'active' });
+      await adminApi.updateLoanStatus(loan._id, { status: 'active' });
       toast({
         title: "Success",
         description: "Loan activated successfully",
@@ -217,13 +227,13 @@ const AdminLoans = () => {
         loan.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.loanNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.purpose.toLowerCase().includes(searchTerm.toLowerCase());
+        loan.loanNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        loan.purpose?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesAmount = filterAmount === "all" || 
-        (filterAmount === "small" && loan.amount < 100000) ||
-        (filterAmount === "medium" && loan.amount >= 100000 && loan.amount < 500000) ||
-        (filterAmount === "large" && loan.amount >= 500000);
+        (filterAmount === "small" && (loan.amount || 0) < 100000) ||
+        (filterAmount === "medium" && (loan.amount || 0) >= 100000 && (loan.amount || 0) < 500000) ||
+        (filterAmount === "large" && (loan.amount || 0) >= 500000);
       
       return matchesSearch && matchesAmount;
     });
@@ -442,9 +452,9 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>{loan.purpose}</TableCell>
-                        <TableCell>{loan.term} months</TableCell>
+                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>{loan.purpose || 'N/A'}</TableCell>
+                        <TableCell>{(loan.term || 0)} months</TableCell>
                         <TableCell>
                           {new Date(loan.createdAt).toLocaleDateString()}
                         </TableCell>
@@ -506,9 +516,9 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>{loan.purpose}</TableCell>
-                        <TableCell>{loan.term} months</TableCell>
+                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>{loan.purpose || 'N/A'}</TableCell>
+                        <TableCell>{(loan.term || 0)} months</TableCell>
                         <TableCell>
                           {loan.approvedBy ? `${loan.approvedBy.firstName} ${loan.approvedBy.lastName}` : 'N/A'}
                         </TableCell>
@@ -520,7 +530,7 @@ const AdminLoans = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleActivateLoan(loan._id)}
+                              onClick={() => handleActivateLoan(loan)}
                             >
                               Activate
                             </Button>
@@ -556,6 +566,8 @@ const AdminLoans = () => {
                       <TableHead>Member</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Remaining Balance</TableHead>
+                      <TableHead>Total Paid</TableHead>
+                      <TableHead>Progress</TableHead>
                       <TableHead>Monthly Payment</TableHead>
                       <TableHead>Next Payment Date</TableHead>
                       <TableHead>Status</TableHead>
@@ -568,9 +580,11 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>UGX{loan.remainingBalance.toLocaleString()}</TableCell>
-                        <TableCell>UGX{loan.monthlyPayment.toLocaleString()}</TableCell>
+                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>UGX{(loan.remainingBalance || 0).toLocaleString()}</TableCell>
+                        <TableCell>UGX{(loan.totalPaidAmount || 0).toLocaleString()}</TableCell>
+                        <TableCell>{((loan.paymentProgress || 0) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>UGX{(loan.monthlyPayment || 0).toLocaleString()}</TableCell>
                         <TableCell>
                           {loan.nextPaymentDate
                             ? new Date(loan.nextPaymentDate).toLocaleDateString()
@@ -625,9 +639,9 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>{loan.purpose}</TableCell>
-                        <TableCell>{loan.term} months</TableCell>
+                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>{loan.purpose || 'N/A'}</TableCell>
+                        <TableCell>{(loan.term || 0)} months</TableCell>
                         <TableCell>
                           {loan.lastPaymentDate
                             ? new Date(loan.lastPaymentDate).toLocaleDateString()
@@ -681,8 +695,8 @@ const AdminLoans = () => {
                         <TableCell className="font-medium">
                           {loan.user.firstName} {loan.user.lastName}
                         </TableCell>
-                        <TableCell>UGX{loan.amount.toLocaleString()}</TableCell>
-                        <TableCell>UGX{loan.remainingBalance.toLocaleString()}</TableCell>
+                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>UGX{(loan.remainingBalance || 0).toLocaleString()}</TableCell>
                         <TableCell>
                           {loan.nextPaymentDate
                             ? new Date(loan.nextPaymentDate).toLocaleDateString()
@@ -727,10 +741,10 @@ const AdminLoans = () => {
                     <h4 className="font-semibold">Loan Information</h4>
                     <div className="space-y-2 text-sm">
                       <div><span className="font-medium">Loan Number:</span> {selectedLoan.loanNumber}</div>
-                      <div><span className="font-medium">Amount:</span> UGX{selectedLoan.amount.toLocaleString()}</div>
-                      <div><span className="font-medium">Purpose:</span> {selectedLoan.purpose}</div>
-                      <div><span className="font-medium">Term:</span> {selectedLoan.term} months</div>
-                      <div><span className="font-medium">Interest Rate:</span> {selectedLoan.interestRate}%</div>
+                      <div><span className="font-medium">Amount:</span> UGX{(selectedLoan.amount || 0).toLocaleString()}</div>
+                      <div><span className="font-medium">Purpose:</span> {selectedLoan.purpose || 'N/A'}</div>
+                      <div><span className="font-medium">Term:</span> {(selectedLoan.term || 0)} months</div>
+                      <div><span className="font-medium">Interest Rate:</span> {(selectedLoan.interestRate || 0)}%</div>
                       <div><span className="font-medium">Status:</span> 
                         <Badge variant={getStatusBadgeVariant(selectedLoan.status)} className="ml-2">
                           {selectedLoan.status === 'paid' ? 'Cleared' : selectedLoan.status}
@@ -754,9 +768,9 @@ const AdminLoans = () => {
                   <div>
                     <h4 className="font-semibold">Payment Information</h4>
                     <div className="space-y-2 text-sm">
-                      <div><span className="font-medium">Monthly Payment:</span> UGX{selectedLoan.monthlyPayment.toLocaleString()}</div>
-                      <div><span className="font-medium">Total Payment:</span> UGX{selectedLoan.totalPayment.toLocaleString()}</div>
-                      <div><span className="font-medium">Remaining Balance:</span> UGX{selectedLoan.remainingBalance.toLocaleString()}</div>
+                      <div><span className="font-medium">Monthly Payment:</span> UGX{(selectedLoan.monthlyPayment || 0).toLocaleString()}</div>
+                      <div><span className="font-medium">Total Payment:</span> UGX{(selectedLoan.totalPayment || 0).toLocaleString()}</div>
+                      <div><span className="font-medium">Remaining Balance:</span> UGX{(selectedLoan.remainingBalance || 0).toLocaleString()}</div>
                       <div><span className="font-medium">Next Payment:</span> {selectedLoan.nextPaymentDate ? new Date(selectedLoan.nextPaymentDate).toLocaleDateString() : 'N/A'}</div>
                     </div>
                   </div>

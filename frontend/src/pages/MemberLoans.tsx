@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Loan {
   _id: string;
@@ -440,62 +441,66 @@ const MemberLoans = () => {
                     <p className="font-medium">UGX{loan.amount.toLocaleString()}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-muted-foreground">Term</p>
+                    <p className="font-medium">{loan.term} months</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Interest Rate</p>
+                    <p className="font-medium">{loan.interestRate}%</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-muted-foreground">Monthly Payment</p>
                     <p className="font-medium">UGX{loan.monthlyPayment.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Remaining Balance</p>
-                    <p className="font-medium">
-                      {loan.remainingBalance <= 0 ? (
-                        <span className="text-green-600 flex items-center gap-1">
-                          <CheckCircle className="h-4 w-4" />
-                          Cleared
-                        </span>
-                      ) : (
-                        `UGX${loan.remainingBalance.toLocaleString()}`
-                      )}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Total Payment</p>
+                    <p className="font-medium">UGX{loan.totalPayment.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Next Payment</p>
-                    <p className="font-medium">
-                      {loan.status === 'paid' || loan.remainingBalance <= 0 ? (
-                        <span className="text-green-600">Completed</span>
-                      ) : loan.nextPaymentDate ? (
-                        new Date(loan.nextPaymentDate).toLocaleDateString()
-                      ) : (
-                        'N/A'
-                      )}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Remaining Balance</p>
+                    <p className="font-medium text-lg text-primary">UGX{loan.remainingBalance.toLocaleString()}</p>
                   </div>
+                  {loan.nextPaymentDate && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Next Payment Due</p>
+                      <p className="font-medium">{new Date(loan.nextPaymentDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
                 </div>
-                {loan.status === 'active' && loan.remainingBalance > 0 && (
-                  <div className="mt-4">
-                    <Button
-                      onClick={() => {
-                        setSelectedLoan(loan);
-                        setPaymentData({ amount: "", paymentMethod: "cash", paymentType: "partial" });
-                        setIsPaymentOpen(true);
-                      }}
-                    >
+                {loan.paymentHistory && loan.paymentHistory.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold mb-2">Payment History</h3>
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Receipt</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {loan.paymentHistory.map((payment, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
+                              <TableCell>UGX{payment.amount.toLocaleString()}</TableCell>
+                              <TableCell>{payment.receiptNumber}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+                {loan.status === 'active' && (
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={() => {
+                      setSelectedLoan(loan);
+                      setIsPaymentOpen(true);
+                    }}>
                       <DollarSign className="h-4 w-4 mr-2" />
                       Make Payment
                     </Button>
-                  </div>
-                )}
-
-                {/* Payment History */}
-                {loan.paymentHistory && loan.paymentHistory.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium mb-2">Recent Payments</h4>
-                    <div className="space-y-1">
-                      {loan.paymentHistory.slice(-3).map((payment, index) => (
-                        <div key={index} className="flex justify-between text-sm">
-                          <span>{new Date(payment.date).toLocaleDateString()}</span>
-                          <span>UGX{payment.amount.toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 )}
               </CardContent>
@@ -503,61 +508,53 @@ const MemberLoans = () => {
           ))}
         </div>
 
+        {/* Payment Dialog */}
         <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Make Loan Payment</DialogTitle>
               <DialogDescription>
-                Enter the payment amount for loan #{selectedLoan?.loanNumber}
+                Enter payment details for Loan #{selectedLoan?.loanNumber}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleLoanPayment} className="space-y-4">
               <div>
-                <Label>Payment Type</Label>
-                <Select value={paymentData.paymentType} onValueChange={(value) => {
-                  setPaymentData({ 
-                    ...paymentData, 
-                    paymentType: value,
-                    amount: value === "full" ? selectedLoan?.remainingBalance.toString() || "" : ""
-                  });
-                }}>
+                <Label htmlFor="paymentType">Payment Type</Label>
+                <Select
+                  value={paymentData.paymentType}
+                  onValueChange={(value) => setPaymentData({ ...paymentData, paymentType: value as "partial" | "full" })}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select payment type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="partial">Partial Payment</SelectItem>
-                    <SelectItem value="full">Full Payment (Clear Loan)</SelectItem>
+                    <SelectItem value="full">Full Payment (UGX{selectedLoan?.remainingBalance.toLocaleString()})</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              
+              {paymentData.paymentType === "partial" && (
+                <div>
+                  <Label htmlFor="paymentAmount">Amount (UGX)</Label>
+                  <Input
+                    id="paymentAmount"
+                    type="number"
+                    min="1"
+                    step="100"
+                    value={paymentData.amount}
+                    onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
               <div>
-                <Label htmlFor="payment-amount">Amount (UGX)</Label>
-                <Input
-                  id="payment-amount"
-                  type="number"
-                  min="1"
-                  max={selectedLoan?.remainingBalance}
-                  step="0.01"
-                  value={paymentData.amount}
-                  onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
-                  disabled={paymentData.paymentType === "full"}
-                  required
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  {paymentData.paymentType === "full" ? (
-                    <span className="text-green-600">This will clear your entire loan balance</span>
-                  ) : (
-                    `Maximum: UGX${selectedLoan?.remainingBalance.toLocaleString()}`
-                  )}
-                </p>
-              </div>
-
-              <div>
-                <Label>Payment Method</Label>
-                <Select value={paymentData.paymentMethod} onValueChange={(value) => setPaymentData({ ...paymentData, paymentMethod: value })}>
+                <Label htmlFor="paymentMethod">Payment Method</Label>
+                <Select
+                  value={paymentData.paymentMethod}
+                  onValueChange={(value) => setPaymentData({ ...paymentData, paymentMethod: value })}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
@@ -566,9 +563,8 @@ const MemberLoans = () => {
                   </SelectContent>
                 </Select>
               </div>
-
               <Button type="submit" className="w-full">
-                {paymentData.paymentType === "full" ? "Clear Loan" : "Confirm Payment"}
+                Process Payment
               </Button>
             </form>
           </DialogContent>

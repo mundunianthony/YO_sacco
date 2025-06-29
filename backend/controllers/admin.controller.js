@@ -315,6 +315,13 @@ exports.updateLoanStatus = async (req, res) => {
       }
     } else if (status === 'rejected') {
       loan.rejectionReason = rejectionReason;
+    } else if (status === 'paid') {
+      // When a loan is marked as paid, reduce the user's loan balance
+      const user = await User.findById(loan.user);
+      if (user) {
+        user.loanBalance = Math.max(0, (user.loanBalance || 0) - loan.amount);
+        await user.save();
+      }
     }
 
     await loan.save();

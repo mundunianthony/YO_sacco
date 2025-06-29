@@ -39,11 +39,18 @@ exports.applyForLoan = async (req, res) => {
     }
 
     // Rule 1: Minimum savings
-    if ((user.savingsBalance || 0) < 10000) {
-      return res.status(400).json({ success: false, error: 'You must have at least UGX 10,000 in savings to qualify for a loan.' });
+    if ((user.savingsBalance || 0) < 1000000) {
+      return res.status(400).json({ success: false, error: 'You must have at least UGX 1,000,000 in savings to qualify for a loan.' });
     }
 
-    // Rule 2: Max loan is 3x savings
+    // Rule 2: Account age
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    if (user.createdAt > oneDayAgo) {
+      return res.status(400).json({ success: false, error: 'You must be a member for at least one day to qualify for a loan.' });
+    }
+
+    // Rule 3: Max loan is 3x savings
     if (amount > 3 * (user.savingsBalance || 0)) {
       return res.status(400).json({ success: false, error: 'You can only borrow up to 3 times your savings balance.' });
     }
