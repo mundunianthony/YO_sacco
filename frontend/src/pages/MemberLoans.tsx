@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Plus, DollarSign } from "lucide-react";
+import { CreditCard, Plus, DollarSign, CheckCircle, X } from "lucide-react";
 import { memberApi, adminApi } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createPortal } from "react-dom";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface Loan {
   _id: string;
@@ -24,6 +27,20 @@ interface Loan {
   remainingBalance: number;
   nextPaymentDate: string;
   createdAt: string;
+  paymentHistory: Array<{
+    amount: number;
+    date: string;
+    receiptNumber: string;
+  }>;
+}
+
+interface Member {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  memberId: string;
+  role: string;
 }
 
 const MemberLoans = () => {
@@ -45,12 +62,17 @@ const MemberLoans = () => {
   const [paymentData, setPaymentData] = useState({
     amount: "",
     paymentMethod: "cash",
+    paymentType: "partial", // partial or full
   });
 
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [selectedGuarantors, setSelectedGuarantors] = useState<string[]>([]);
   const [guarantorSearch, setGuarantorSearch] = useState("");
+  const [isGuarantorPopoverOpen, setIsGuarantorPopoverOpen] = useState(false);
   const currentUser = JSON.parse(localStorage.getItem("currentUser") || '{}');
+
+  // Check if user has an active or pending loan
+  const hasActiveLoan = loans.some(l => l.status === 'active' || l.status === 'pending' || l.status === 'approved');
 
   const filteredMembers = members.filter(m =>
     m.role === 'member' &&
@@ -60,61 +82,17 @@ const MemberLoans = () => {
     )
   );
 
-  const [showDropdown, setShowDropdown] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState({} as React.CSSProperties);
-  const [dropdownDirection, setDropdownDirection] = useState<'up' | 'down'>('down');
+  const handleGuarantorToggle = (memberId: string) => {
+    setSelectedGuarantors(prev => 
+      prev.includes(memberId) 
+        ? prev.filter(id => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
 
-  useEffect(() => {
-    if (!showDropdown) return;
-    const input = inputRef.current;
-    if (input) {
-      const rect = input.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const direction = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
-      setDropdownDirection(direction);
-      setDropdownStyle({
-        position: 'absolute',
-        left: rect.left + window.scrollX,
-        width: rect.width,
-        zIndex: 9999,
-        top: direction === 'down' ? rect.bottom + window.scrollY + 4 : undefined,
-        bottom: direction === 'up' ? window.innerHeight - rect.top + 4 : undefined,
-        maxHeight: 250,
-        background: 'white',
-        borderRadius: 8,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
-        border: '1px solid #e5e7eb',
-        padding: 8,
-        overflowY: 'auto',
-      });
-    }
-  }, [showDropdown, guarantorSearch]);
-
-  useEffect(() => {
-    if (!showDropdown) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        dropdownRef.current.contains(e.target as Node)
-      ) {
-        // Allow interaction inside dropdown
-        return;
-      }
-      if (
-        inputRef.current &&
-        inputRef.current.contains(e.target as Node)
-      ) {
-        // Allow interaction with input
-        return;
-      }
-      setShowDropdown(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showDropdown]);
+  const removeGuarantor = (memberId: string) => {
+    setSelectedGuarantors(prev => prev.filter(id => id !== memberId));
+  };
 
   const fetchLoans = async () => {
     try {
@@ -194,11 +172,26 @@ const MemberLoans = () => {
     if (!selectedLoan) return;
 
     try {
-      const amount = parseFloat(paymentData.amount);
+      let amount = parseFloat(paymentData.amount);
+      
+      // If full payment is selected, use the remaining balance
+      if (paymentData.paymentType === "full") {
+        amount = selectedLoan.remainingBalance;
+      }
+
       if (amount <= 0) {
         toast({
           title: "Invalid Amount",
           description: "Please enter a valid amount",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (amount > selectedLoan.remainingBalance) {
+        toast({
+          title: "Amount Too High",
+          description: "Payment amount cannot exceed remaining balance",
           variant: "destructive",
         });
         return;
@@ -211,10 +204,10 @@ const MemberLoans = () => {
 
       toast({
         title: "Payment Successful",
-        description: `UGX${amount.toLocaleString()} has been applied to your loan`,
+        description: `UGX${amount.toLocaleString()} has been applied to your loan${amount === selectedLoan.remainingBalance ? '. Your loan is now cleared!' : ''}`,
       });
 
-      setPaymentData({ amount: "", paymentMethod: "cash" });
+      setPaymentData({ amount: "", paymentMethod: "cash", paymentType: "partial" });
       setIsPaymentOpen(false);
       setSelectedLoan(null);
       fetchLoans();
@@ -224,6 +217,23 @@ const MemberLoans = () => {
         description: "Failed to process payment",
         variant: "destructive",
       });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case 'approved':
+        return <Badge className="bg-blue-100 text-blue-800">Approved</Badge>;
+      case 'paid':
+        return <Badge className="bg-green-100 text-green-800">Cleared</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
   };
 
@@ -249,7 +259,7 @@ const MemberLoans = () => {
           </div>
           <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
             <DialogTrigger asChild>
-              <Button disabled={loans.some(l => l.status === 'active' || l.status === 'pending')}>
+              <Button disabled={hasActiveLoan}>
                 <Plus className="h-4 w-4 mr-2" />
                 Apply for Loan
               </Button>
@@ -306,65 +316,82 @@ const MemberLoans = () => {
                   />
                 </div>
                 <div>
-                  <Label>Guarantors</Label>
-                  <div className="relative">
-                    <Input
-                      ref={inputRef}
-                      placeholder="Search members..."
-                      value={guarantorSearch || ''}
-                      onFocus={() => setShowDropdown(true)}
-                      onChange={e => {
-                        setGuarantorSearch(e.target.value);
-                        setShowDropdown(true);
-                      }}
-                      className="mb-2"
-                    />
-                    {showDropdown && createPortal(
-                      <div
-                        ref={dropdownRef}
-                        style={dropdownStyle}
-                        className="modern-guarantor-dropdown"
+                  <Label>Guarantors (Select other members)</Label>
+                  <Popover open={isGuarantorPopoverOpen} onOpenChange={setIsGuarantorPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={isGuarantorPopoverOpen}
+                        className="w-full justify-between"
                       >
-                        {filteredMembers.length === 0 ? (
-                          <div className="p-2 text-muted-foreground">No members found.</div>
-                        ) : (
-                          filteredMembers.map((member) => (
-                            <label
-                              key={member._id}
-                              className="flex items-center gap-2 px-2 py-1 cursor-pointer rounded hover:bg-gray-100 transition"
-                              onMouseDown={e => e.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                value={member._id}
-                                checked={selectedGuarantors.includes(member._id)}
-                                onChange={e => {
-                                  if (e.target.checked) {
-                                    setSelectedGuarantors([...selectedGuarantors, member._id]);
-                                  } else {
-                                    setSelectedGuarantors(selectedGuarantors.filter(id => id !== member._id));
-                                  }
-                                }}
-                                onMouseDown={e => e.stopPropagation()}
-                              />
-                              <span className="truncate">{member.firstName} {member.lastName}</span>
-                            </label>
-                          ))
-                        )}
-                      </div>,
-                      document.body
-                    )}
+                        {selectedGuarantors.length === 0
+                          ? "Select guarantors..."
+                          : `${selectedGuarantors.length} guarantor(s) selected`}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <div className="p-3 border-b">
+                        <Input
+                          placeholder="Search members..."
+                          value={guarantorSearch}
+                          onChange={(e) => setGuarantorSearch(e.target.value)}
+                          className="h-8"
+                        />
+                      </div>
+                      <ScrollArea className="h-64">
+                        <div className="p-1">
+                          {filteredMembers.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No members found
+                            </div>
+                          ) : (
+                            filteredMembers.map((member) => (
+                              <div
+                                key={member._id}
+                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded-sm cursor-pointer"
+                                onClick={() => handleGuarantorToggle(member._id)}
+                              >
+                                <Checkbox
+                                  checked={selectedGuarantors.includes(member._id)}
+                                  onChange={() => handleGuarantorToggle(member._id)}
+                                />
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium">
+                                    {member.firstName} {member.lastName}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {member.email}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                  
+                  {/* Selected Guarantors Display */}
+                  {selectedGuarantors.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {selectedGuarantors.map(id => {
                         const member = members.find(m => m._id === id);
                         return member ? (
-                          <span key={id} className="bg-gray-200 rounded px-2 py-1 text-xs">
+                          <Badge key={id} variant="secondary" className="flex items-center gap-1">
                             {member.firstName} {member.lastName}
-                          </span>
+                            <button
+                              type="button"
+                              onClick={() => removeGuarantor(id)}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
                         ) : null;
                       })}
                     </div>
-                  </div>
+                  )}
                 </div>
                 <Button type="submit" className="w-full">
                   Submit Application
@@ -374,24 +401,35 @@ const MemberLoans = () => {
           </Dialog>
         </div>
 
+        {hasActiveLoan && (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <CreditCard className="h-4 w-4" />
+                <p className="text-sm">
+                  You already have an active loan application or loan. You cannot apply for another loan until your current loan is cleared.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 gap-6">
           {loans.map((loan) => (
             <Card key={loan._id}>
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle>Loan #{loan.loanNumber}</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      Loan #{loan.loanNumber}
+                      {loan.status === 'paid' && <CheckCircle className="h-5 w-5 text-green-600" />}
+                    </CardTitle>
                     <CardDescription>
                       {loan.purpose}
                     </CardDescription>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    loan.status === 'active' ? 'bg-green-100 text-green-800' :
-                    loan.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    loan.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                  <div>
+                    {getStatusBadge(loan.status)}
                   </div>
                 </div>
               </CardHeader>
@@ -407,28 +445,57 @@ const MemberLoans = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Remaining Balance</p>
-                    <p className="font-medium">UGX{loan.remainingBalance.toLocaleString()}</p>
+                    <p className="font-medium">
+                      {loan.remainingBalance <= 0 ? (
+                        <span className="text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          Cleared
+                        </span>
+                      ) : (
+                        `UGX${loan.remainingBalance.toLocaleString()}`
+                      )}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Next Payment</p>
                     <p className="font-medium">
-                      {loan.nextPaymentDate
-                        ? new Date(loan.nextPaymentDate).toLocaleDateString()
-                        : 'N/A'}
+                      {loan.status === 'paid' || loan.remainingBalance <= 0 ? (
+                        <span className="text-green-600">Completed</span>
+                      ) : loan.nextPaymentDate ? (
+                        new Date(loan.nextPaymentDate).toLocaleDateString()
+                      ) : (
+                        'N/A'
+                      )}
                     </p>
                   </div>
                 </div>
-                {loan.status === 'active' && (
+                {loan.status === 'active' && loan.remainingBalance > 0 && (
                   <div className="mt-4">
                     <Button
                       onClick={() => {
                         setSelectedLoan(loan);
+                        setPaymentData({ amount: "", paymentMethod: "cash", paymentType: "partial" });
                         setIsPaymentOpen(true);
                       }}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
                       Make Payment
                     </Button>
+                  </div>
+                )}
+
+                {/* Payment History */}
+                {loan.paymentHistory && loan.paymentHistory.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Recent Payments</h4>
+                    <div className="space-y-1">
+                      {loan.paymentHistory.slice(-3).map((payment, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span>{new Date(payment.date).toLocaleDateString()}</span>
+                          <span>UGX{payment.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -446,6 +513,25 @@ const MemberLoans = () => {
             </DialogHeader>
             <form onSubmit={handleLoanPayment} className="space-y-4">
               <div>
+                <Label>Payment Type</Label>
+                <Select value={paymentData.paymentType} onValueChange={(value) => {
+                  setPaymentData({ 
+                    ...paymentData, 
+                    paymentType: value,
+                    amount: value === "full" ? selectedLoan?.remainingBalance.toString() || "" : ""
+                  });
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="partial">Partial Payment</SelectItem>
+                    <SelectItem value="full">Full Payment (Clear Loan)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
                 <Label htmlFor="payment-amount">Amount (UGX)</Label>
                 <Input
                   id="payment-amount"
@@ -455,14 +541,34 @@ const MemberLoans = () => {
                   step="0.01"
                   value={paymentData.amount}
                   onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                  disabled={paymentData.paymentType === "full"}
                   required
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Maximum: UGX{selectedLoan?.remainingBalance.toLocaleString()}
+                  {paymentData.paymentType === "full" ? (
+                    <span className="text-green-600">This will clear your entire loan balance</span>
+                  ) : (
+                    `Maximum: UGX${selectedLoan?.remainingBalance.toLocaleString()}`
+                  )}
                 </p>
               </div>
+
+              <div>
+                <Label>Payment Method</Label>
+                <Select value={paymentData.paymentMethod} onValueChange={(value) => setPaymentData({ ...paymentData, paymentMethod: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button type="submit" className="w-full">
-                Confirm Payment
+                {paymentData.paymentType === "full" ? "Clear Loan" : "Confirm Payment"}
               </Button>
             </form>
           </DialogContent>
@@ -473,3 +579,4 @@ const MemberLoans = () => {
 };
 
 export default MemberLoans;
+

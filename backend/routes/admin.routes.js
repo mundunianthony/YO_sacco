@@ -1,9 +1,11 @@
 const express = require('express');
-const { authenticate, authorize } = require('../middleware/auth');
-const { check, validationResult } = require('express-validator');
+const router = express.Router();
 const {
   getAllUsers,
   getUserById,
+  getMemberTransactions,
+  generateMemberReport,
+  generateMonthlyReport,
   updateUserStatus,
   getAllLoans,
   getLoanById,
@@ -13,156 +15,54 @@ const {
   getLoanStats,
   getTransactions,
   getLoanPayments,
-  getPendingWithdrawals
+  getPendingWithdrawals,
+  sendReminder,
+  getNotifications,
+  markNotificationAsRead
 } = require('../controllers/admin.controller');
-const { approveWithdrawal } = require('../controllers/savings.controller');
-const User = require('../models/User');
-const NotificationService = require('../services/notificationService');
 
-const router = express.Router();
+const { protect, authorize } = require('../middleware/auth');
+const { body } = require('express-validator');
 
-// @desc    Get admin dashboard statistics
-// @route   GET /api/admin/dashboard
-// @access  Private/Admin
-router.get('/dashboard', authenticate, authorize('admin'), getDashboardStats);
+// Apply authentication and authorization middleware to all routes
+router.use(protect);
+router.use(authorize('admin'));
 
-// @desc    Get all users
-// @route   GET /api/admin/users
-// @access  Private/Admin
-router.get('/users', authenticate, authorize('admin'), getAllUsers);
-
-// @desc    Get user stats
-// @route   GET /api/admin/users/stats
-// @access  Private/Admin
-router.get('/users/stats', authenticate, authorize('admin'), getUserStats);
-
-// @desc    Get user by ID
-// @route   GET /api/admin/users/:id
-// @access  Private/Admin
-router.get('/users/:id', authenticate, authorize('admin'), getUserById);
-
-// @desc    Update user status
-// @route   PUT /api/admin/users/:id/status
-// @access  Private/Admin
-router.put('/users/:id/status', authenticate, authorize('admin'), [
-  check('status', 'Status is required').isIn(['active', 'inactive', 'suspended'])
+// User management routes
+router.get('/users', getAllUsers);
+router.get('/users/stats', getUserStats);
+router.get('/users/:id', getUserById);
+router.get('/users/:id/transactions', getMemberTransactions);
+router.get('/users/:id/report', generateMemberReport);
+router.put('/users/:id/status', [
+  body('status').isIn(['active', 'inactive', 'suspended']).withMessage('Invalid status')
 ], updateUserStatus);
+router.post('/users/:id/reminder', [
+  body('message').notEmpty().withMessage('Message is required')
+], sendReminder);
 
-// @desc    Get all loans
-// @route   GET /api/admin/loans
-// @access  Private/Admin
-router.get('/loans', authenticate, authorize('admin'), getAllLoans);
-
-// @desc    Get loan stats
-// @route   GET /api/admin/loans/stats
-// @access  Private/Admin
-router.get('/loans/stats', authenticate, authorize('admin'), getLoanStats);
-
-// @desc    Get loan by ID
-// @route   GET /api/admin/loans/:id
-// @access  Private/Admin
-router.get('/loans/:id', authenticate, authorize('admin'), getLoanById);
-
-// @desc    Get loan payments
-// @route   GET /api/admin/loans/:id/payments
-// @access  Private/Admin
-router.get('/loans/:id/payments', authenticate, authorize('admin'), getLoanPayments);
-
-// @desc    Update loan status
-// @route   PUT /api/admin/loans/:id/status
-// @access  Private/Admin
-router.put('/loans/:id/status', authenticate, authorize('admin'), [
-  check('status', 'Status is required').isIn(['approved', 'rejected', 'active', 'paid', 'defaulted']),
-  check('rejectionReason', 'Rejection reason is required when status is rejected')
-    .if((req) => req.body.status === 'rejected')
-    .notEmpty()
+// Loan management routes
+router.get('/loans', getAllLoans);
+router.get('/loans/stats', getLoanStats);
+router.get('/loans/:id', getLoanById);
+router.get('/loans/:id/payments', getLoanPayments);
+router.put('/loans/:id/status', [
+  body('status').isIn(['approved', 'rejected', 'active']).withMessage('Invalid status')
 ], updateLoanStatus);
 
-// @desc    Get transactions
-// @route   GET /api/admin/transactions
-// @access  Private/Admin
-router.get('/transactions', authenticate, authorize('admin'), getTransactions);
+// Transaction routes
+router.get('/transactions', getTransactions);
+router.get('/withdrawals/pending', getPendingWithdrawals);
 
-// @desc    Get pending withdrawal requests
-// @route   GET /api/admin/withdrawals/pending
-// @access  Private/Admin
-router.get('/withdrawals/pending', authenticate, authorize('admin'), getPendingWithdrawals);
+// Report routes
+router.get('/reports/monthly', generateMonthlyReport);
 
-// @desc    Approve or reject withdrawal request
-// @route   PUT /api/admin/withdrawals/:id/approve
-// @access  Private/Admin
-router.put('/withdrawals/:id/approve', authenticate, authorize('admin'), [
-  check('status', 'Status is required').isIn(['approved', 'rejected']),
-  check('rejectionReason', 'Rejection reason is required when status is rejected')
-    .if((req) => req.body.status === 'rejected')
-    .notEmpty()
-], approveWithdrawal);
+// Dashboard routes
+router.get('/dashboard', getDashboardStats);
 
-// @desc    Send reminder to member
-// @route   POST /api/admin/members/:id/reminder
-// @access  Private/Admin
-router.post('/members/:id/reminder', authenticate, authorize('admin'), [
-  check('message', 'Message is required').notEmpty()
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      error: errors.array()[0].msg
-    });
-  }
+// Notification routes
+router.get('/notifications', getNotifications);
+router.put('/notifications/:id/read', markNotificationAsRead);
 
-  try {
-    const { message } = req.body;
-    const { id } = req.params;
-    const adminId = req.user.id;
+module.exports = router;
 
-    // Find the member
-    const member = await User.findById(id);
-    if (!member) {
-      return res.status(404).json({
-        success: false,
-        error: 'Member not found'
-      });
-    }
-
-    // Find the admin
-    const admin = await User.findById(adminId);
-    if (!admin) {
-      return res.status(404).json({
-        success: false,
-        error: 'Admin not found'
-      });
-    }
-
-    // Handle admin name with fallback
-    const adminFirstName = admin.firstName || 'Admin';
-    const adminLastName = admin.lastName || '';
-    const adminName = `${adminFirstName} ${adminLastName}`.trim();
-
-    await NotificationService.notifyAdminReminder(
-      member._id,
-      message,
-      adminName
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Reminder sent successfully',
-      data: {
-        memberId: member._id,
-        memberName: `${member.firstName} ${member.lastName}`,
-        message,
-        sentBy: `${admin.firstName} ${admin.lastName}`
-      }
-    });
-  } catch (error) {
-    console.error('Error sending reminder:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to send reminder'
-    });
-  }
-});
-
-module.exports = router; 

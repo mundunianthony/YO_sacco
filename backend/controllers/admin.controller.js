@@ -48,6 +48,148 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// @desc    Get member transactions
+// @route   GET /api/admin/users/:id/transactions
+// @access  Private/Admin
+exports.getMemberTransactions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50 } = req.query;
+
+    const transactions = await Transaction.find({ user: id })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .populate('user', 'firstName lastName memberId');
+
+    res.status(200).json({
+      success: true,
+      count: transactions.length,
+      data: transactions
+    });
+  } catch (err) {
+    console.error('Error fetching member transactions:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Generate member report
+// @route   GET /api/admin/users/:id/report
+// @access  Private/Admin
+exports.generateMemberReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await User.findById(id).select('-password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const transactions = await Transaction.find({ user: id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    const loans = await Loan.find({ user: id })
+      .sort({ createdAt: -1 });
+
+    const reportData = {
+      member: user,
+      transactions,
+      loans,
+      summary: {
+        totalTransactions: transactions.length,
+        totalDeposits: transactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
+        totalWithdrawals: transactions.filter(t => t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0),
+        totalLoans: loans.length,
+        activeLoans: loans.filter(l => l.status === 'active').length,
+        totalLoanAmount: loans.reduce((sum, l) => sum + l.amount, 0),
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      data: reportData
+    });
+  } catch (err) {
+    console.error('Error generating member report:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Generate monthly report
+// @route   GET /api/admin/reports/monthly
+// @access  Private/Admin
+exports.generateMonthlyReport = async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    
+    if (!year || !month) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year and month are required'
+      });
+    }
+
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = new Date(parseInt(year), parseInt(month), 0);
+
+    const transactions = await Transaction.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).populate('user', 'firstName lastName memberId');
+
+    const loans = await Loan.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).populate('user', 'firstName lastName memberId');
+
+    const summary = {
+      period: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`,
+      transactions: {
+        total: transactions.length,
+        deposits: transactions.filter(t => t.type === 'deposit').length,
+        withdrawals: transactions.filter(t => t.type === 'withdrawal').length,
+        totalDepositAmount: transactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
+        totalWithdrawalAmount: transactions.filter(t => t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0),
+      },
+      loans: {
+        total: loans.length,
+        totalAmount: loans.reduce((sum, l) => sum + l.amount, 0),
+        approved: loans.filter(l => l.status === 'approved').length,
+        active: loans.filter(l => l.status === 'active').length,
+        paid: loans.filter(l => l.status === 'paid').length,
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary,
+        transactions,
+        loans
+      }
+    });
+  } catch (err) {
+    console.error('Error generating monthly report:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+
 // @desc    Update user status
 // @route   PUT /api/admin/users/:id/status
 // @access  Private/Admin
@@ -86,6 +228,7 @@ exports.getAllLoans = async (req, res) => {
   try {
     const loans = await Loan.find()
       .populate('user', 'firstName lastName email memberId')
+      .populate('approvedBy', 'firstName lastName')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -331,7 +474,7 @@ exports.getLoanStats = async (req, res) => {
     const totalLoans = await Loan.countDocuments();
     const pendingLoans = await Loan.countDocuments({ status: 'pending' });
     const activeLoans = await Loan.countDocuments({ status: 'active' });
-    const paidLoans = await Loan.countDocuments({ status: 'paid' });
+    const paidLoans = await Loan.countDocuments({ status: { $in: ['paid', 'cleared'] } });
     const defaultedLoans = await Loan.countDocuments({ status: 'defaulted' });
 
     // Get total loan amount and total interest
@@ -483,4 +626,95 @@ exports.getPendingWithdrawals = async (req, res) => {
       error: 'Server Error'
     });
   }
-}; 
+};
+
+// @desc    Send reminder to member
+// @route   POST /api/admin/users/:id/reminder
+// @access  Private/Admin
+exports.sendReminder = async (req, res) => {
+  try {
+    const { message } = req.body;
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Create notification for the user
+    const NotificationService = require('../services/notificationService');
+    await NotificationService.createNotification({
+      type: 'reminder',
+      message: message,
+      user: id,
+      priority: 'high',
+      category: 'admin'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Reminder sent successfully'
+    });
+  } catch (err) {
+    console.error('Error sending reminder:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Get admin notifications
+// @route   GET /api/admin/notifications
+// @access  Private/Admin
+exports.getNotifications = async (req, res) => {
+  try {
+    const NotificationService = require('../services/notificationService');
+    const notifications = await NotificationService.getUserNotifications(req.user._id, 1, 50);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        notifications
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching admin notifications:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Mark admin notification as read
+// @route   PUT /api/admin/notifications/:id/read
+// @access  Private/Admin
+exports.markNotificationAsRead = async (req, res) => {
+  try {
+    const NotificationService = require('../services/notificationService');
+    const notification = await NotificationService.markAsRead(req.params.id, req.user._id);
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        error: 'Notification not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: notification
+    });
+  } catch (err) {
+    console.error('Error marking notification as read:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Server error'
+    });
+  }
+};
+

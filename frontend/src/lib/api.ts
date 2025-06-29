@@ -90,6 +90,11 @@ export const adminApi = {
   // Transactions
   getTransactions: (params?: { type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
     api.get('/admin/transactions', { params }),
+  getMemberTransactions: (memberId: string) => api.get(`/admin/members/${memberId}/transactions`),
+
+  // Reports
+  generateMemberReport: (memberId: string) => api.get(`/admin/members/${memberId}/report`, { responseType: 'blob' }),
+  generateMonthlyReport: (year: number, month: number) => api.get(`/admin/reports/monthly/${year}/${month}`, { responseType: 'blob' }),
 
   // Withdrawals
   getPendingWithdrawals: () => api.get('/admin/withdrawals/pending'),
