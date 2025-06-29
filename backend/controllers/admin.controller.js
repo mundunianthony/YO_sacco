@@ -56,21 +56,24 @@ exports.getMemberTransactions = async (req, res) => {
     const { id } = req.params;
     const { limit = 50 } = req.query;
 
+    console.log('Fetching transactions for user:', id);
     const transactions = await Transaction.find({ user: id })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .populate('user', 'firstName lastName memberId');
 
+    console.log('Transactions found:', transactions ? transactions.length : 0);
     res.status(200).json({
       success: true,
-      count: transactions.length,
-      data: transactions
+      count: transactions ? transactions.length : 0,
+      data: transactions || []
     });
   } catch (err) {
     console.error('Error fetching member transactions:', err);
     res.status(500).json({
       success: false,
-      error: err.message || 'Server error'
+      error: err.message || 'Server error',
+      data: []
     });
   }
 };
@@ -81,7 +84,7 @@ exports.getMemberTransactions = async (req, res) => {
 exports.generateMemberReport = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const user = await User.findById(id).select('-password');
     if (!user) {
       return res.status(404).json({
@@ -130,7 +133,7 @@ exports.generateMemberReport = async (req, res) => {
 exports.generateMonthlyReport = async (req, res) => {
   try {
     const { year, month } = req.query;
-    
+
     if (!year || !month) {
       return res.status(400).json({
         success: false,

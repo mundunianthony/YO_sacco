@@ -178,12 +178,12 @@ exports.updateLoanStatus = async (req, res) => {
     const oldStatus = loan.status;
     loan.status = status;
     if (reason) loan.rejectionReason = reason;
-    
+
     if (status === 'approved') {
       loan.approvedBy = req.user.id;
       loan.approvedAt = Date.now();
     }
-    
+
     await loan.save();
 
     // Find all admin users
@@ -307,7 +307,7 @@ exports.makeLoanPayment = async (req, res) => {
           overdue = true;
         }
       }
-      
+
       if (overdue) {
         // Suspend loan privilege for 1 month
         const user = await User.findById(loan.user._id);

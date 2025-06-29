@@ -12,7 +12,7 @@ const PaymentSchema = new mongoose.Schema({
   receiptNumber: {
     type: String,
     required: true,
-    default: function() {
+    default: function () {
       return `REC${Date.now()}${Math.floor(Math.random() * 1000)}`;
     }
   },
@@ -32,7 +32,7 @@ const LoanSchema = new mongoose.Schema({
     type: String,
     unique: true,
     required: true,
-    default: function() {
+    default: function () {
       const timestamp = Date.now().toString();
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       return `LOAN${timestamp}${random}`;
@@ -120,13 +120,13 @@ const LoanSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt timestamp before saving
-LoanSchema.pre('save', function(next) {
+LoanSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
 // Calculate remaining balance before saving
-LoanSchema.pre('save', function(next) {
+LoanSchema.pre('save', function (next) {
   if (this.isModified('paymentHistory')) {
     const totalPaid = this.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
     this.remainingBalance = this.totalPayment - totalPaid;

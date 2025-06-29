@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { adminApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Download, FileText, BarChart3, TrendingUp, Users, DollarSign } from "lucide-react";
+import { Eye, Download, FileText, BarChart3, TrendingUp, Users, DollarSign, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
 interface Member {
@@ -65,6 +66,7 @@ const AdminMembers = () => {
   const [reportType, setReportType] = useState("member");
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
   const { toast } = useToast();
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
@@ -109,15 +111,20 @@ const AdminMembers = () => {
   };
 
   const fetchMemberTransactions = async (memberId: string) => {
+    setTransactionsLoading(true);
     try {
       const response = await adminApi.getMemberTransactions(memberId);
       setMemberTransactions(response.data.data || []);
+      console.log('Fetched transactions:', response.data.data);
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to load member transactions",
         variant: "destructive",
       });
+      setMemberTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
     }
   };
 
@@ -147,27 +154,63 @@ const AdminMembers = () => {
 
   const generateMemberReport = async (member: Member) => {
     try {
+      // First fetch the member's transactions to ensure we have data
+      await fetchMemberTransactions(member._id);
+      
       const response = await adminApi.generateMemberReport(member._id);
       
-      // Create and download PDF
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `member-report-${member.memberId}-${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      toast({
-        title: "Success",
-        description: "Member report downloaded successfully",
-      });
+      // Generate TXT report from the JSON data with the fetched transactions
+      generateTXTMemberReport(member, response.data.data);
     } catch (error) {
-      // Fallback: Generate report locally
+      console.error("Failed to generate member report:", error);
+      // Fallback: Generate report locally with fetched transactions
       generateLocalMemberReport(member);
     }
+  };
+
+  const generateTXTMemberReport = (member: Member, reportData: any) => {
+    const reportContent = `Member Report - ${member.firstName} ${member.lastName}
+Generated on: ${new Date().toLocaleString()}
+
+Member Information
+==================
+Member ID: ${member.memberId}
+Full Name: ${member.firstName} ${member.lastName}
+Email: ${member.email}
+Phone: ${member.phoneNumber}
+Status: ${member.status}
+Join Date: ${new Date(member.createdAt).toLocaleDateString()}
+
+Financial Summary
+=================
+Current Savings: UGX${member.savingsBalance.toLocaleString()}
+Loan Balance: UGX${(member.loanBalance || 0).toLocaleString()}
+
+Recent Transactions
+===================
+Date                    Type        Amount              Status      Description
+${memberTransactions.slice(0, 10).map(t => 
+  `${new Date(t.createdAt).toLocaleDateString().padEnd(20)} ${t.type.toUpperCase().padEnd(12)} UGX${t.amount.toLocaleString().padEnd(18)} ${t.status.padEnd(12)} ${t.description || '-'}`
+).join('\n')}
+
+---
+This report was generated automatically by the YO SACCO Management System
+For any queries, please contact the administration team.`;
+
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `member-report-${member.memberId}-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Success",
+      description: "Member report downloaded successfully",
+    });
   };
 
   const generateLocalMemberReport = (member: Member) => {
@@ -211,16 +254,37 @@ Generated on: ${new Date().toLocaleString()}
     });
   };
 
-  const generateMonthlyReport = async () => {
+  const generateCSVMemberReport = async (member: Member) => {
     try {
-      const response = await adminApi.generateMonthlyReport(reportYear, reportMonth);
+      // First fetch the member's transactions to ensure we have data
+      await fetchMemberTransactions(member._id);
       
-      // Create and download PDF
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const csvContent = `Member Report - ${member.firstName} ${member.lastName}
+Generated on: ${new Date().toLocaleString()}
+
+Member Information
+Member ID,${member.memberId}
+Full Name,${member.firstName} ${member.lastName}
+Email,${member.email}
+Phone,${member.phoneNumber}
+Status,${member.status}
+Join Date,${new Date(member.createdAt).toLocaleDateString()}
+
+Financial Summary
+Current Savings,UGX${member.savingsBalance.toLocaleString()}
+Loan Balance,UGX${(member.loanBalance || 0).toLocaleString()}
+
+Recent Transactions
+Date,Type,Amount,Status,Description
+${memberTransactions.slice(0, 10).map(t => 
+  `${new Date(t.createdAt).toLocaleDateString()},${t.type.toUpperCase()},UGX${t.amount.toLocaleString()},${t.status},${t.description}`
+).join('\n')}`;
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `monthly-report-${reportYear}-${reportMonth.toString().padStart(2, '0')}.pdf`;
+      link.download = `member-report-${member.memberId}-${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -228,12 +292,100 @@ Generated on: ${new Date().toLocaleString()}
 
       toast({
         title: "Success",
-        description: "Monthly report downloaded successfully",
+        description: "CSV report downloaded successfully",
       });
     } catch (error) {
+      console.error("Failed to generate CSV report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate CSV report",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateMonthlyReport = async () => {
+    try {
+      const response = await adminApi.generateMonthlyReport(reportYear, reportMonth);
+      
+      // Generate TXT report from the JSON data
+      generateTXTMonthlyReport(response.data.data);
+    } catch (error) {
+      console.error("Failed to generate monthly report:", error);
       // Fallback: Generate report locally
       generateLocalMonthlyReport();
     }
+  };
+
+  const generateTXTMonthlyReport = (reportData: any) => {
+    const startDate = new Date(reportYear, reportMonth - 1, 1);
+    const endDate = new Date(reportYear, reportMonth, 0);
+    
+    const reportContent = `
+YO SACCO - MONTHLY TRANSACTION REPORT
+=====================================
+
+Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}
+Generated on: ${new Date().toLocaleString()}
+
+TRANSACTION SUMMARY
+==================
+Total Transactions: ${reportData?.summary?.transactions?.total || 0}
+Total Deposits: UGX${(reportData?.summary?.transactions?.totalDepositAmount || 0).toLocaleString()}
+Total Withdrawals: UGX${(reportData?.summary?.transactions?.totalWithdrawalAmount || 0).toLocaleString()}
+Net Flow: UGX${((reportData?.summary?.transactions?.totalDepositAmount || 0) - (reportData?.summary?.transactions?.totalWithdrawalAmount || 0)).toLocaleString()}
+
+DETAILED STATISTICS
+===================
+Transaction Breakdown:
+- Deposits: ${reportData?.summary?.transactions?.deposits || 0} transactions
+- Withdrawals: ${reportData?.summary?.transactions?.withdrawals || 0} transactions
+- Average Deposit: UGX${reportData?.summary?.transactions?.deposits > 0 ? Math.round((reportData?.summary?.transactions?.totalDepositAmount || 0) / reportData?.summary?.transactions?.deposits).toLocaleString() : '0'}
+- Average Withdrawal: UGX${reportData?.summary?.transactions?.withdrawals > 0 ? Math.round((reportData?.summary?.transactions?.totalWithdrawalAmount || 0) / reportData?.summary?.transactions?.withdrawals).toLocaleString() : '0'}
+
+Loan Activity:
+- Total Loans: ${reportData?.summary?.loans?.total || 0}
+- Approved Loans: ${reportData?.summary?.loans?.approved || 0}
+- Active Loans: ${reportData?.summary?.loans?.active || 0}
+- Total Loan Amount: UGX${(reportData?.summary?.loans?.totalAmount || 0).toLocaleString()}
+
+RECENT TRANSACTIONS (Last 20)
+============================
+${(reportData?.transactions || []).slice(0, 20).map((t: any, index: number) => 
+  `${index + 1}. ${new Date(t.createdAt).toLocaleDateString()}
+   Member: ${t.user?.firstName} ${t.user?.lastName} (${t.user?.memberId})
+   Type: ${t.type.toUpperCase()}
+   Amount: UGX${t.amount.toLocaleString()}
+   Status: ${t.status}
+   `
+).join('\n')}
+
+REPORT SUMMARY
+==============
+- Reporting period: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}
+- Total financial activity: ${reportData?.summary?.transactions?.total || 0} transactions
+- Net financial flow: UGX${((reportData?.summary?.transactions?.totalDepositAmount || 0) - (reportData?.summary?.transactions?.totalWithdrawalAmount || 0)).toLocaleString()}
+- Loan portfolio activity: ${reportData?.summary?.loans?.total || 0} loans processed
+
+---
+This report was generated automatically by the YO SACCO Management System
+For any queries, please contact the administration team.
+    `;
+
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `monthly-report-${reportYear}-${reportMonth.toString().padStart(2, '0')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Success",
+      description: "Monthly report downloaded successfully",
+    });
   };
 
   const generateLocalMonthlyReport = () => {
@@ -286,6 +438,55 @@ Generated on: ${new Date().toLocaleString()}
     toast({
       title: "Success",
       description: "Monthly report downloaded successfully",
+    });
+  };
+
+  const generateCSVMonthlyReport = () => {
+    const startDate = new Date(reportYear, reportMonth - 1, 1);
+    const endDate = new Date(reportYear, reportMonth, 0);
+    
+    const monthlyTransactions = allTransactions.filter(t => {
+      const transactionDate = new Date(t.createdAt);
+      return transactionDate >= startDate && transactionDate <= endDate;
+    });
+
+    const totalDeposits = monthlyTransactions
+      .filter(t => t.type === 'deposit')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalWithdrawals = monthlyTransactions
+      .filter(t => t.type === 'withdrawal')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const csvContent = `Monthly Transaction Report
+Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}
+Generated on: ${new Date().toLocaleString()}
+
+Summary
+Total Transactions,${monthlyTransactions.length}
+Total Deposits,UGX${totalDeposits.toLocaleString()}
+Total Withdrawals,UGX${totalWithdrawals.toLocaleString()}
+Net Flow,UGX${(totalDeposits - totalWithdrawals).toLocaleString()}
+
+Transaction Details
+Date,Member Name,Member ID,Type,Amount,Status
+${monthlyTransactions.map(t => 
+  `${new Date(t.createdAt).toLocaleDateString()},${t.user?.firstName} ${t.user?.lastName},${t.user?.memberId},${t.type.toUpperCase()},UGX${t.amount.toLocaleString()},${t.status}`
+).join('\n')}`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `monthly-report-${reportYear}-${reportMonth.toString().padStart(2, '0')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Success",
+      description: "CSV report downloaded successfully",
     });
   };
 
@@ -413,7 +614,11 @@ Generated on: ${new Date().toLocaleString()}
                     </div>
                     <Button onClick={generateMonthlyReport} className="w-full">
                       <Download className="h-4 w-4 mr-2" />
-                      Download Monthly Report
+                      Generate TXT Report
+                    </Button>
+                    <Button onClick={generateCSVMonthlyReport} variant="outline" className="w-full">
+                      <Download className="h-4 w-4 mr-2" />
+                      Download CSV Report
                     </Button>
                   </>
                 )}
@@ -634,14 +839,25 @@ Generated on: ${new Date().toLocaleString()}
                           <Eye className="h-4 w-4 mr-1" />
                           Transactions
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => generateMemberReport(member)}
-                        >
-                          <FileText className="h-4 w-4 mr-1" />
-                          Report
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <FileText className="h-4 w-4 mr-1" />
+                              Report
+                              <ChevronDown className="h-4 w-4 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => generateMemberReport(member)}>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Generate TXT Report
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => generateCSVMemberReport(member)}>
+                              <Download className="h-4 w-4 mr-2" />
+                              Download CSV Report
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -663,7 +879,12 @@ Generated on: ${new Date().toLocaleString()}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              {memberTransactions.length === 0 ? (
+              {transactionsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="ml-2">Loading transactions...</span>
+                </div>
+              ) : memberTransactions.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">No transactions found for this member</p>
                 </div>
@@ -701,8 +922,8 @@ Generated on: ${new Date().toLocaleString()}
                             {transaction.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{transaction.paymentMethod}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
+                        <TableCell>{transaction.paymentMethod || '-'}</TableCell>
+                        <TableCell>{transaction.description || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
