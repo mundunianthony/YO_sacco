@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, DollarSign, CreditCard, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, DollarSign, CreditCard, TrendingUp, Minus } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardData {
   users: {
@@ -41,12 +43,22 @@ interface DashboardData {
     amount: number;
     createdAt: string;
   }>;
+  pendingWithdrawals?: Array<{
+    _id: string;
+    user: {
+      firstName: string;
+      lastName: string;
+    };
+    amount: number;
+    createdAt: string;
+  }>;
 }
 
 const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
@@ -185,6 +197,60 @@ const AdminDashboard = () => {
 
           <Card>
             <CardHeader>
+              <CardTitle>Pending Withdrawal Requests</CardTitle>
+              <CardDescription>
+                Withdrawal requests awaiting approval
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {dashboardData.pendingWithdrawals && dashboardData.pendingWithdrawals.length > 0 ? (
+                  <>
+                    {dashboardData.pendingWithdrawals.map((withdrawal) => (
+                      <div key={withdrawal._id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div>
+                          <p className="font-medium">
+                            {withdrawal.user.firstName} {withdrawal.user.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Withdrawal request - {new Date(withdrawal.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">UGX{withdrawal.amount.toLocaleString()}</p>
+                          <p className="text-sm text-orange-600">Pending</p>
+                        </div>
+                      </div>
+                    ))}
+                    <Button 
+                      className="w-full mt-4" 
+                      onClick={() => navigate('/admin/withdrawals')}
+                    >
+                      <Minus className="h-4 w-4 mr-2" />
+                      Manage All Withdrawals
+                    </Button>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">No pending withdrawal requests</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-2" 
+                      onClick={() => navigate('/admin/withdrawals')}
+                    >
+                      <Minus className="h-4 w-4 mr-2" />
+                      View Withdrawals
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
               <CardTitle>Member Activity</CardTitle>
               <CardDescription>
                 Recent member transactions and activities
@@ -209,6 +275,25 @@ const AdminDashboard = () => {
                 ))}
               </div>
             </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate('/admin/withdrawals')}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              </CardTitle>
+              <CardDescription>
+                Withdrawals
+              </CardDescription>
+            </CardHeader>
           </Card>
         </div>
       </div>

@@ -62,7 +62,7 @@ class NotificationService {
       console.log('Query:', query);
 
       const skip = (page - 1) * limit;
-      
+
       const notifications = await Notification.find({
         user: userId,
         ...query
@@ -354,6 +354,48 @@ class NotificationService {
       user: userId,
       relatedTo: savingsId,
       onModel: 'Savings',
+      priority: 'medium'
+    });
+  }
+
+  // Withdrawal Request Notifications
+  static async notifyWithdrawalRequest(userId, transactionId, amount) {
+    // Notify all admin users about the withdrawal request
+    const adminUsers = await User.find({ role: 'admin' });
+    const user = await User.findById(userId);
+
+    const notifications = adminUsers.map(admin =>
+      this.createNotification({
+        type: 'withdrawal_request',
+        message: `${user.firstName} ${user.lastName} has requested a withdrawal of UGX${amount}`,
+        user: admin._id,
+        relatedTo: transactionId,
+        onModel: 'Transaction',
+        priority: 'high'
+      })
+    );
+
+    return Promise.all(notifications);
+  }
+
+  static async notifyWithdrawalApproved(userId, transactionId, amount) {
+    return this.createNotification({
+      type: 'withdrawal_approved',
+      message: `Your withdrawal request of UGX${amount} has been approved and processed`,
+      user: userId,
+      relatedTo: transactionId,
+      onModel: 'Transaction',
+      priority: 'medium'
+    });
+  }
+
+  static async notifyWithdrawalRejected(userId, transactionId, amount, reason) {
+    return this.createNotification({
+      type: 'withdrawal_rejected',
+      message: `Your withdrawal request of UGX${amount} has been rejected. Reason: ${reason}`,
+      user: userId,
+      relatedTo: transactionId,
+      onModel: 'Transaction',
       priority: 'medium'
     });
   }

@@ -156,11 +156,11 @@ exports.updateLoanStatus = async (req, res) => {
 
     // Update loan status
     loan.status = status;
-    
+
     if (status === 'approved') {
       loan.approvedBy = req.user.id;
       loan.approvedAt = Date.now();
-      
+
       // Update user's loan balance
       const user = await User.findById(loan.user);
       if (user) {
@@ -229,8 +229,8 @@ exports.getDashboardStats = async (req, res) => {
 
     const totalSavings = savingsStats[0]?.totalSavings || 0;
     const previousMonthSavings = savingsStats[0]?.previousMonthSavings || 0;
-    const monthlyGrowth = previousMonthSavings > 0 
-      ? ((totalSavings - previousMonthSavings) / previousMonthSavings) * 100 
+    const monthlyGrowth = previousMonthSavings > 0
+      ? ((totalSavings - previousMonthSavings) / previousMonthSavings) * 100
       : 0;
 
     // Get recent transactions
@@ -241,6 +241,15 @@ exports.getDashboardStats = async (req, res) => {
 
     // Get recent loans
     const recentLoans = await Loan.find()
+      .populate('user', 'firstName lastName email memberId')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Get pending withdrawal requests
+    const pendingWithdrawals = await Transaction.find({
+      type: 'withdrawal',
+      status: 'pending'
+    })
       .populate('user', 'firstName lastName email memberId')
       .sort({ createdAt: -1 })
       .limit(5);
@@ -263,7 +272,8 @@ exports.getDashboardStats = async (req, res) => {
           monthlyGrowth: parseFloat(monthlyGrowth.toFixed(1))
         },
         recentTransactions,
-        recentLoans
+        recentLoans,
+        pendingWithdrawals
       }
     });
   } catch (err) {
@@ -327,20 +337,24 @@ exports.getLoanStats = async (req, res) => {
     // Get total loan amount and total interest
     const loanAmounts = await Loan.aggregate([
       { $match: { status: { $in: ['active', 'approved'] } } },
-      { $group: { 
-        _id: null, 
-        totalAmount: { $sum: '$amount' },
-        totalInterest: { $sum: '$interestAmount' }
-      }}
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' },
+          totalInterest: { $sum: '$interestAmount' }
+        }
+      }
     ]);
 
     // Get loans by term
     const loansByTerm = await Loan.aggregate([
-      { $group: { 
-        _id: '$term',
-        count: { $sum: 1 },
-        totalAmount: { $sum: '$amount' }
-      }}
+      {
+        $group: {
+          _id: '$term',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
     ]);
 
     res.status(200).json({
@@ -371,7 +385,7 @@ exports.getLoanStats = async (req, res) => {
 exports.getTransactions = async (req, res) => {
   try {
     const { type, startDate, endDate, page = 1, limit = 10 } = req.query;
-    
+
     const query = {};
     if (type) query.type = type;
     if (startDate || endDate) {
@@ -441,6 +455,32 @@ exports.getLoanPayments = async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message || 'Server error'
+    });
+  }
+};
+
+// @desc    Get pending withdrawal requests
+// @route   GET /api/admin/withdrawals/pending
+// @access  Private/Admin
+exports.getPendingWithdrawals = async (req, res) => {
+  try {
+    const pendingWithdrawals = await Transaction.find({
+      type: 'withdrawal',
+      status: 'pending'
+    })
+      .populate('user', 'firstName lastName email memberId')
+      .populate('processedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: pendingWithdrawals
+    });
+  } catch (error) {
+    console.error('Error fetching pending withdrawals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
     });
   }
 }; 

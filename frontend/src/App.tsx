@@ -15,6 +15,7 @@ import MemberProfile from "./pages/MemberProfile";
 import MemberNotifications from "./pages/MemberNotifications";
 import NotFound from "./pages/NotFound";
 import Register from "./pages/Register";
+import AdminWithdrawals from "./pages/AdminWithdrawals";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/admin/members" element={<AdminMembers />} />
           <Route path="/admin/loans" element={<AdminLoans />} />
           <Route path="/admin/notifications" element={<AdminNotifications />} />
+          <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
           <Route path="/member-dashboard" element={<MemberDashboard />} />
           <Route path="/member/savings" element={<MemberSavings />} />
           <Route path="/member/loans" element={<MemberLoans />} />

@@ -12,8 +12,10 @@ const {
   getUserStats,
   getLoanStats,
   getTransactions,
-  getLoanPayments
+  getLoanPayments,
+  getPendingWithdrawals
 } = require('../controllers/admin.controller');
+const { approveWithdrawal } = require('../controllers/savings.controller');
 
 const router = express.Router();
 
@@ -78,5 +80,20 @@ router.put('/loans/:id/status', authenticate, authorize('admin'), [
 // @route   GET /api/admin/transactions
 // @access  Private/Admin
 router.get('/transactions', authenticate, authorize('admin'), getTransactions);
+
+// @desc    Get pending withdrawal requests
+// @route   GET /api/admin/withdrawals/pending
+// @access  Private/Admin
+router.get('/withdrawals/pending', authenticate, authorize('admin'), getPendingWithdrawals);
+
+// @desc    Approve or reject withdrawal request
+// @route   PUT /api/admin/withdrawals/:id/approve
+// @access  Private/Admin
+router.put('/withdrawals/:id/approve', authenticate, authorize('admin'), [
+  check('status', 'Status is required').isIn(['approved', 'rejected']),
+  check('rejectionReason', 'Rejection reason is required when status is rejected')
+    .if((req) => req.body.status === 'rejected')
+    .notEmpty()
+], approveWithdrawal);
 
 module.exports = router; 

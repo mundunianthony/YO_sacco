@@ -76,13 +76,13 @@ export const adminApi = {
   // Users
   getUsers: () => api.get('/admin/users'),
   getUserById: (id: string) => api.get(`/admin/users/${id}`),
-  updateUserStatus: (id: string, data: { status: string }) => 
+  updateUserStatus: (id: string, data: { status: string }) =>
     api.put(`/admin/users/${id}/status`, data),
 
   // Loans
   getLoans: () => api.get('/admin/loans'),
   getLoanById: (id: string) => api.get(`/admin/loans/${id}`),
-  updateLoanStatus: (id: string, data: { status: string; rejectionReason?: string }) => 
+  updateLoanStatus: (id: string, data: { status: string; rejectionReason?: string }) =>
     api.put(`/admin/loans/${id}/status`, data),
   getLoanStats: () => api.get('/admin/loans/stats'),
 
@@ -91,8 +91,21 @@ export const adminApi = {
   getUserStats: () => api.get('/admin/users/stats'),
 
   // Transactions
-  getTransactions: (params?: { type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) => 
+  getTransactions: (params?: { type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
     api.get('/admin/transactions', { params }),
+
+  // Withdrawals
+  getPendingWithdrawals: () => api.get('/admin/withdrawals/pending'),
+  approveWithdrawal: (id: string, data: { status: 'approved' | 'rejected'; rejectionReason?: string }) =>
+    api.put(`/admin/withdrawals/${id}/approve`, data),
+
+  // Notifications
+  getNotifications: () => api.get('/notifications'),
+  markNotificationAsRead: (id: string) => api.put(`/notifications/${id}/read`),
+  markAllNotificationsAsRead: () => api.put('/notifications/read-all'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  sendReminder: (memberId: string, data: { message: string }) =>
+    api.post(`/admin/members/${memberId}/reminder`, data),
 };
 
 // Notification API

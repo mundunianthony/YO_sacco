@@ -1,31 +1,43 @@
 const express = require('express');
-const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
+const { check } = require('express-validator');
 const {
   getNotifications,
+  getUnreadCount,
   markAsRead,
   markAllAsRead,
-  getUnreadCount
-} = require('../controllers/notification.controller');
+  getAdminNotifications,
+  getAdminUnreadCount,
+  markAdminNotificationAsRead,
+  markAllAdminNotificationsAsRead,
+  createSystemNotification,
+  createMaintenanceNotification,
+  createBroadcastNotification
+} = require('../controllers/notificationController');
 
-// @route   GET /api/notifications
-// @desc    Get user notifications
-// @access  Private
-router.get('/', protect, getNotifications);
+const router = express.Router();
 
-// @route   PUT /api/notifications/:id/read
-// @desc    Mark notification as read
-// @access  Private
-router.put('/:id/read', protect, markAsRead);
+// Member routes
+router.get('/', authenticate, getNotifications);
+router.get('/unread-count', authenticate, getUnreadCount);
+router.put('/:id/read', authenticate, markAsRead);
+router.put('/read-all', authenticate, markAllAsRead);
 
-// @route   PUT /api/notifications/read-all
-// @desc    Mark all notifications as read
-// @access  Private
-router.put('/read-all', protect, markAllAsRead);
-
-// @route   GET /api/notifications/unread-count
-// @desc    Get unread notification count
-// @access  Private
-router.get('/unread-count', protect, getUnreadCount);
+// Admin routes
+router.get('/admin', authenticate, authorize('admin'), getAdminNotifications);
+router.get('/admin/unread-count', authenticate, authorize('admin'), getAdminUnreadCount);
+router.put('/admin/:id/read', authenticate, authorize('admin'), markAdminNotificationAsRead);
+router.put('/admin/read-all', authenticate, authorize('admin'), markAllAdminNotificationsAsRead);
+router.post('/system', authenticate, authorize('admin'), [
+  check('message', 'Message is required').notEmpty(),
+  check('type', 'Type is required').notEmpty()
+], createSystemNotification);
+router.post('/maintenance', authenticate, authorize('admin'), [
+  check('details', 'Maintenance details are required').notEmpty()
+], createMaintenanceNotification);
+router.post('/broadcast', authenticate, authorize('admin'), [
+  check('message', 'Message is required').notEmpty(),
+  check('type', 'Type is required').notEmpty()
+], createBroadcastNotification);
 
 module.exports = router; 

@@ -1,4 +1,4 @@
-import { Home, Users, DollarSign, CreditCard, Bell, User } from "lucide-react";
+import { Home, Users, DollarSign, CreditCard, Bell, User, Minus } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -21,6 +21,7 @@ export function AppSidebar() {
     { title: "Dashboard", url: "/admin-dashboard", icon: Home },
     { title: "Members", url: "/admin/members", icon: Users },
     { title: "Loans", url: "/admin/loans", icon: CreditCard },
+    { title: "Withdrawals", url: "/admin/withdrawals", icon: Minus },
     { title: "Notifications", url: "/admin/notifications", icon: Bell },
   ];
 

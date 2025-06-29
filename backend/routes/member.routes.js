@@ -15,8 +15,8 @@ const router = express.Router();
 router.get('/profile', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
-  res.status(200).json({
-    success: true,
+    res.status(200).json({
+      success: true,
       data: user
     });
   } catch (error) {
@@ -33,7 +33,7 @@ router.get('/profile', authenticate, async (req, res) => {
 router.put('/profile', authenticate, async (req, res) => {
   try {
     const { name, email, phone, address, dob } = req.body;
-    
+
     // Build update object
     const updateFields = {};
     if (name) updateFields.name = name;
@@ -103,7 +103,7 @@ router.put('/change-password', authenticate, async (req, res) => {
 router.get('/dashboard', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
+
     // Get recent transactions
     const transactions = await Transaction.find({ user: req.user.id })
       .sort({ createdAt: -1 })
@@ -124,14 +124,14 @@ router.get('/dashboard', authenticate, async (req, res) => {
       user: req.user.id,
       type: 'interest_earned',
       createdAt: { $gte: startOfYear }
-    }).then(transactions => 
+    }).then(transactions =>
       transactions.reduce((sum, t) => sum + t.amount, 0)
     );
 
     // Get next loan payment
-    const nextPayment = activeLoans.length > 0 ? 
+    const nextPayment = activeLoans.length > 0 ?
       activeLoans[0].monthlyPayment : 0;
-    const nextPaymentDate = activeLoans.length > 0 ? 
+    const nextPaymentDate = activeLoans.length > 0 ?
       activeLoans[0].nextPaymentDate : null;
 
     res.status(200).json({
@@ -163,7 +163,11 @@ router.get('/savings', authenticate, async (req, res) => {
     const user = await User.findById(req.user.id);
     const transactions = await Transaction.find({
       user: req.user.id,
-      type: { $in: ['deposit', 'withdrawal', 'interest_earned'] }
+      type: { $in: ['deposit', 'withdrawal', 'interest_earned'] },
+      $or: [
+        { type: { $ne: 'withdrawal' } },
+        { type: 'withdrawal', status: 'completed' }
+      ]
     }).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -348,8 +352,8 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
     user.loanBalance = Math.max(0, user.loanBalance - amount);
     await user.save();
 
-  res.status(200).json({
-    success: true,
+    res.status(200).json({
+      success: true,
       data: {
         transaction,
         loan
