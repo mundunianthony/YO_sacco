@@ -88,10 +88,8 @@ const LoanSchema = new mongoose.Schema({
     trim: true
   },
   guarantors: [{
-    name: String,
-    phone: String,
-    address: String,
-    relationship: String
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }],
   documents: [{
     type: String,

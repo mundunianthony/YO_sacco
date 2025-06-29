@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate, authorize } = require('../middleware/auth');
-const { check } = require('express-validator');
+const { check, validationResult } = require('express-validator');
 const {
   getAllUsers,
   getUserById,
@@ -16,6 +16,7 @@ const {
   getPendingWithdrawals
 } = require('../controllers/admin.controller');
 const { approveWithdrawal } = require('../controllers/savings.controller');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -95,5 +96,75 @@ router.put('/withdrawals/:id/approve', authenticate, authorize('admin'), [
     .if((req) => req.body.status === 'rejected')
     .notEmpty()
 ], approveWithdrawal);
+
+// @desc    Send reminder to member
+// @route   POST /api/admin/members/:id/reminder
+// @access  Private/Admin
+router.post('/members/:id/reminder', authenticate, authorize('admin'), [
+  check('message', 'Message is required').notEmpty()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: errors.array()[0].msg
+    });
+  }
+
+  try {
+    const { message } = req.body;
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    // Find the member
+    const member = await User.findById(id);
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    // Find the admin
+    const admin = await User.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        error: 'Admin not found'
+      });
+    }
+
+    // Create notification for the member
+    const NotificationService = require('../services/notificationService');
+
+    // Handle admin name with fallback
+    const adminFirstName = admin.firstName || 'Admin';
+    const adminLastName = admin.lastName || '';
+    const adminName = `${adminFirstName} ${adminLastName}`.trim();
+
+    await NotificationService.notifyAdminReminder(
+      member._id,
+      message,
+      adminName
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Reminder sent successfully',
+      data: {
+        memberId: member._id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        message,
+        sentBy: `${admin.firstName} ${admin.lastName}`
+      }
+    });
+  } catch (error) {
+    console.error('Error sending reminder:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send reminder'
+    });
+  }
+});
 
 module.exports = router; 

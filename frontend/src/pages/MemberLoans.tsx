@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, Plus, DollarSign } from "lucide-react";
-import { memberApi } from "@/lib/api";
+import { memberApi, adminApi } from "@/lib/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createPortal } from "react-dom";
 
 interface Loan {
   _id: string;
@@ -37,13 +39,82 @@ const MemberLoans = () => {
     purpose: "",
     term: "12",
     collateral: "",
-    guarantors: [{ name: "", phone: "", address: "", relationship: "" }],
+    guarantors: [],
   });
 
   const [paymentData, setPaymentData] = useState({
     amount: "",
     paymentMethod: "cash",
   });
+
+  const [members, setMembers] = useState<any[]>([]);
+  const [selectedGuarantors, setSelectedGuarantors] = useState<string[]>([]);
+  const [guarantorSearch, setGuarantorSearch] = useState("");
+  const currentUser = JSON.parse(localStorage.getItem("currentUser") || '{}');
+
+  const filteredMembers = members.filter(m =>
+    m.role === 'member' &&
+    m._id !== currentUser._id &&
+    ((`${m.firstName} ${m.lastName}`.toLowerCase().includes(guarantorSearch.toLowerCase())) ||
+     (m.email?.toLowerCase().includes(guarantorSearch.toLowerCase()))
+    )
+  );
+
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState({} as React.CSSProperties);
+  const [dropdownDirection, setDropdownDirection] = useState<'up' | 'down'>('down');
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const input = inputRef.current;
+    if (input) {
+      const rect = input.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const direction = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+      setDropdownDirection(direction);
+      setDropdownStyle({
+        position: 'absolute',
+        left: rect.left + window.scrollX,
+        width: rect.width,
+        zIndex: 9999,
+        top: direction === 'down' ? rect.bottom + window.scrollY + 4 : undefined,
+        bottom: direction === 'up' ? window.innerHeight - rect.top + 4 : undefined,
+        maxHeight: 250,
+        background: 'white',
+        borderRadius: 8,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+        border: '1px solid #e5e7eb',
+        padding: 8,
+        overflowY: 'auto',
+      });
+    }
+  }, [showDropdown, guarantorSearch]);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        dropdownRef.current.contains(e.target as Node)
+      ) {
+        // Allow interaction inside dropdown
+        return;
+      }
+      if (
+        inputRef.current &&
+        inputRef.current.contains(e.target as Node)
+      ) {
+        // Allow interaction with input
+        return;
+      }
+      setShowDropdown(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showDropdown]);
 
   const fetchLoans = async () => {
     try {
@@ -62,6 +133,17 @@ const MemberLoans = () => {
 
   useEffect(() => {
     fetchLoans();
+    // Fetch members for guarantor selection
+    const fetchMembers = async () => {
+      try {
+        const response = await memberApi.getAllMembers();
+        setMembers(response.data.data || []);
+        console.log('Fetched members:', response.data.data, 'Current user:', currentUser);
+      } catch (error) {
+        // ignore
+      }
+    };
+    fetchMembers();
   }, [toast]);
 
   const handleLoanApplication = async (e: React.FormEvent) => {
@@ -69,7 +151,6 @@ const MemberLoans = () => {
     try {
       const amount = parseFloat(loanApplication.amount);
       const term = parseInt(loanApplication.term);
-
       if (amount <= 0 || term <= 0) {
         toast({
           title: "Invalid Input",
@@ -78,27 +159,25 @@ const MemberLoans = () => {
         });
         return;
       }
-
       await memberApi.applyForLoan({
         amount,
         purpose: loanApplication.purpose,
         term,
         collateral: loanApplication.collateral,
-        guarantors: loanApplication.guarantors.filter(g => g.name && g.phone),
+        guarantors: selectedGuarantors,
       });
-
       toast({
         title: "Loan Application Submitted",
         description: "Your loan application has been submitted for review",
       });
-
       setLoanApplication({
         amount: "",
         purpose: "",
         term: "12",
         collateral: "",
-        guarantors: [{ name: "", phone: "", address: "", relationship: "" }],
+        guarantors: [],
       });
+      setSelectedGuarantors([]);
       setIsApplyOpen(false);
       fetchLoans();
     } catch (error) {
@@ -148,29 +227,6 @@ const MemberLoans = () => {
     }
   };
 
-  const addGuarantor = () => {
-    setLoanApplication({
-      ...loanApplication,
-      guarantors: [
-        ...loanApplication.guarantors,
-        { name: "", phone: "", address: "", relationship: "" },
-      ],
-    });
-  };
-
-  const removeGuarantor = (index: number) => {
-    setLoanApplication({
-      ...loanApplication,
-      guarantors: loanApplication.guarantors.filter((_, i) => i !== index),
-    });
-  };
-
-  const updateGuarantor = (index: number, field: string, value: string) => {
-    const updatedGuarantors = [...loanApplication.guarantors];
-    updatedGuarantors[index] = { ...updatedGuarantors[index], [field]: value };
-    setLoanApplication({ ...loanApplication, guarantors: updatedGuarantors });
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -193,7 +249,7 @@ const MemberLoans = () => {
           </div>
           <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={loans.some(l => l.status === 'active' || l.status === 'pending')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Apply for Loan
               </Button>
@@ -251,59 +307,64 @@ const MemberLoans = () => {
                 </div>
                 <div>
                   <Label>Guarantors</Label>
-                  {loanApplication.guarantors.map((guarantor, index) => (
-                    <div key={index} className="grid grid-cols-2 gap-4 mt-2">
-                      <div>
-                        <Input
-                          placeholder="Name"
-                          value={guarantor.name}
-                          onChange={(e) => updateGuarantor(index, 'name', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          placeholder="Phone"
-                          value={guarantor.phone}
-                          onChange={(e) => updateGuarantor(index, 'phone', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          placeholder="Address"
-                          value={guarantor.address}
-                          onChange={(e) => updateGuarantor(index, 'address', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Relationship"
-                          value={guarantor.relationship}
-                          onChange={(e) => updateGuarantor(index, 'relationship', e.target.value)}
-                          required
-                        />
-                        {index > 0 && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            onClick={() => removeGuarantor(index)}
-                          >
-                            Remove
-                          </Button>
+                  <div className="relative">
+                    <Input
+                      ref={inputRef}
+                      placeholder="Search members..."
+                      value={guarantorSearch || ''}
+                      onFocus={() => setShowDropdown(true)}
+                      onChange={e => {
+                        setGuarantorSearch(e.target.value);
+                        setShowDropdown(true);
+                      }}
+                      className="mb-2"
+                    />
+                    {showDropdown && createPortal(
+                      <div
+                        ref={dropdownRef}
+                        style={dropdownStyle}
+                        className="modern-guarantor-dropdown"
+                      >
+                        {filteredMembers.length === 0 ? (
+                          <div className="p-2 text-muted-foreground">No members found.</div>
+                        ) : (
+                          filteredMembers.map((member) => (
+                            <label
+                              key={member._id}
+                              className="flex items-center gap-2 px-2 py-1 cursor-pointer rounded hover:bg-gray-100 transition"
+                              onMouseDown={e => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                value={member._id}
+                                checked={selectedGuarantors.includes(member._id)}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setSelectedGuarantors([...selectedGuarantors, member._id]);
+                                  } else {
+                                    setSelectedGuarantors(selectedGuarantors.filter(id => id !== member._id));
+                                  }
+                                }}
+                                onMouseDown={e => e.stopPropagation()}
+                              />
+                              <span className="truncate">{member.firstName} {member.lastName}</span>
+                            </label>
+                          ))
                         )}
-                      </div>
+                      </div>,
+                      document.body
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedGuarantors.map(id => {
+                        const member = members.find(m => m._id === id);
+                        return member ? (
+                          <span key={id} className="bg-gray-200 rounded px-2 py-1 text-xs">
+                            {member.firstName} {member.lastName}
+                          </span>
+                        ) : null;
+                      })}
                     </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-2"
-                    onClick={addGuarantor}
-                  >
-                    Add Guarantor
-                  </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full">
                   Submit Application

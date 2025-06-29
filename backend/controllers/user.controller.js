@@ -132,4 +132,13 @@ exports.updateUserStatus = async (req, res) => {
       error: err.message || 'Server error'
     });
   }
+};
+
+exports.getAllMembers = async (req, res) => {
+  try {
+    const members = await User.find({ role: 'member' }).select('-password');
+    res.status(200).json({ success: true, data: members });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 }; 

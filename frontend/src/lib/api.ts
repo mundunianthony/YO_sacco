@@ -60,15 +60,12 @@ export const memberApi = {
     purpose: string;
     term: number;
     collateral?: string;
-    guarantors?: Array<{
-      name: string;
-      phone: string;
-      address: string;
-      relationship: string;
-    }>;
+    guarantors?: string[];
   }) => api.post('/members/loans', data),
   makeLoanPayment: (loanId: string, data: { amount: number; paymentMethod: string }) =>
     api.post(`/members/loans/${loanId}/payment`, data),
+
+  getAllMembers: () => api.get('/members/all'),
 };
 
 // Admin API

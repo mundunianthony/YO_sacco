@@ -199,6 +199,9 @@ export const NotificationBell = () => {
             >
               <div className="flex items-start justify-between w-full">
                 <div className={`text-sm ${!notification.read ? 'font-medium' : ''}`}>
+                  {notification.type === 'admin_reminder' && (
+                    <span className="inline-block mr-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-800 text-xs font-semibold">REMINDER</span>
+                  )}
                   {notification.message}
                 </div>
                 {notification.read && (

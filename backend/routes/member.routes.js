@@ -6,6 +6,7 @@ const Loan = require('../models/Loan');
 const Transaction = require('../models/Transaction');
 const savingsController = require('../controllers/savings.controller');
 const NotificationService = require('../services/notificationService');
+const { getAllMembers } = require('../controllers/user.controller');
 
 const router = express.Router();
 
@@ -229,10 +230,6 @@ router.post('/loans', authenticate, [
   check('term', 'Term must be between 1 and 36 months').isInt({ min: 1, max: 36 }),
   check('collateral', 'Collateral is optional').optional(),
   check('guarantors', 'Guarantors must be an array').optional().isArray(),
-  check('guarantors.*.name', 'Guarantor name is required').optional().not().isEmpty(),
-  check('guarantors.*.phone', 'Guarantor phone is required').optional().not().isEmpty(),
-  check('guarantors.*.address', 'Guarantor address is required').optional().not().isEmpty(),
-  check('guarantors.*.relationship', 'Guarantor relationship is required').optional().not().isEmpty()
 ], async (req, res) => {
   // Check for validation errors
   const errors = validationResult(req);
@@ -276,6 +273,17 @@ router.post('/loans', authenticate, [
       nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       status: 'pending'
     });
+
+    // Notify each selected guarantor
+    if (Array.isArray(guarantors)) {
+      for (const guarantorId of guarantors) {
+        await NotificationService.notifyGuarantorChosen(
+          guarantorId,
+          `${user.firstName} ${user.lastName}`,
+          loan._id
+        );
+      }
+    }
 
     // Populate user details in response
     await loan.populate('user', 'firstName lastName email memberId');
@@ -366,5 +374,10 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
     });
   }
 });
+
+// @desc    Get all members
+// @route   GET /api/members/all
+// @access  Private
+router.get('/all', authenticate, getAllMembers);
 
 module.exports = router; 

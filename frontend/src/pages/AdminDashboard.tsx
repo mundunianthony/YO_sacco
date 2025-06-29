@@ -122,19 +122,20 @@ const AdminDashboard = () => {
     },
     {
       title: "Active Loans",
-      value: dashboardData.loans?.active?.toLocaleString() ?? '0',
+      value: dashboardData.loans?.total?.toLocaleString() ?? '0',
       description: `Total: UGX${dashboardData.loans?.totalAmount?.toLocaleString() ?? '0'}`,
       icon: CreditCard,
       color: "text-orange-600",
-    },
-    {
-      title: "Growth Rate",
-      value: `${(dashboardData.savings?.monthlyGrowth ?? 0) > 0 ? '+' : ''}${dashboardData.savings?.monthlyGrowth ?? 0}%`,
-      description: "Monthly growth",
-      icon: TrendingUp,
-      color: "text-purple-600",
+      onClick: () => navigate('/admin/loans'),
+      clickable: true,
     },
   ];
+
+  // Calculate unpaid loans count if available
+  if (dashboardData.loans && Array.isArray(dashboardData.recentLoans)) {
+    const unpaidLoans = dashboardData.recentLoans.filter(loan => loan.status !== 'paid').length;
+    stats[2].value = unpaidLoans.toLocaleString();
+  }
 
   return (
     <Layout>
@@ -148,7 +149,11 @@ const AdminDashboard = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, index) => (
-            <Card key={index}>
+            <Card
+              key={index}
+              className={stat.clickable ? 'cursor-pointer hover:shadow-lg transition' : ''}
+              onClick={stat.onClick}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {stat.title}

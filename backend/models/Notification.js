@@ -48,7 +48,9 @@ const notificationSchema = new mongoose.Schema({
       'security_breach',
       'staff_login',
       'staff_action',
-      'staff_performance_alert'
+      'staff_performance_alert',
+      'admin_reminder',
+      'guarantor_chosen'
     ]
   },
   message: {

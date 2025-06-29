@@ -63,14 +63,14 @@ class NotificationService {
 
       const skip = (page - 1) * limit;
 
+      // First get notifications without population to avoid schema errors
       const notifications = await Notification.find({
         user: userId,
         ...query
       })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
-        .populate('relatedTo', 'firstName lastName email');
+        .limit(limit);
 
       console.log('Found notifications:', notifications.length);
       return notifications;
@@ -669,11 +669,32 @@ class NotificationService {
   static async notifyStaffPerformanceAlert(adminId, staffName, tasks) {
     return this.createNotification({
       type: 'staff_performance_alert',
-      message: `Alert: ${staffName} has ${tasks} pending tasks`,
+      message: `Performance alert: ${staffName} has ${tasks} pending tasks`,
       user: adminId,
       category: 'staff_management',
-      priority: 'high',
-      actionRequired: true
+      priority: 'medium'
+    });
+  }
+
+  // Admin Reminder Notifications
+  static async notifyAdminReminder(userId, message, adminName) {
+    return this.createNotification({
+      type: 'admin_reminder',
+      message: `Reminder from ${adminName}: ${message}`,
+      user: userId,
+      category: 'general',
+      priority: 'high'
+    });
+  }
+
+  static async notifyGuarantorChosen(guarantorId, applicantName, loanId) {
+    return this.createNotification({
+      type: 'guarantor_chosen',
+      message: `${applicantName} has selected you as a guarantor for their loan application`,
+      user: guarantorId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'high'
     });
   }
 }
