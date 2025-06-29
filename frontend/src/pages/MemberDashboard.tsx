@@ -49,6 +49,10 @@ const MemberDashboard = () => {
     fetchDashboardData();
   }, [toast]);
 
+  useEffect(() => {
+    document.title = "YO sacco - member";
+  }, []);
+
   const stats = [
     {
       title: "Total Savings",

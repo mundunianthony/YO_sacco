@@ -62,6 +62,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    document.title = "YO sacco - admin";
   }, []);
 
   const fetchDashboardData = async () => {
