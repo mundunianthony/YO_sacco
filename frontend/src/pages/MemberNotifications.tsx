@@ -26,7 +26,6 @@ const MemberNotifications = () => {
 
   useEffect(() => {
     fetchNotifications();
-    fetchUnreadCount();
   }, []);
 
   const fetchNotifications = async () => {
@@ -36,10 +35,14 @@ const MemberNotifications = () => {
       
       // Handle different response structures
       let notificationsData = [];
+      let backendUnreadCount = 0;
+      
       if (response.data && response.data.data && response.data.data.notifications) {
         notificationsData = response.data.data.notifications;
+        backendUnreadCount = response.data.data.unreadCount || 0;
       } else if (response.data && response.data.notifications) {
         notificationsData = response.data.notifications;
+        backendUnreadCount = response.data.unreadCount || 0;
       } else if (Array.isArray(response.data)) {
         notificationsData = response.data;
       } else if (response.data && Array.isArray(response.data.data)) {
@@ -48,6 +51,25 @@ const MemberNotifications = () => {
       
       setNotifications(notificationsData);
       console.log('Processed notifications:', notificationsData);
+      console.log('Backend unread count:', backendUnreadCount);
+      console.log('Calculated unread count:', notificationsData.filter(n => !n.read).length);
+      
+      // Use backend unread count if available, otherwise calculate from notifications
+      if (backendUnreadCount > 0) {
+        setUnreadCount(backendUnreadCount);
+      } else {
+        setUnreadCount(notificationsData.filter(n => !n.read).length);
+      }
+      
+      // Debug individual notifications
+      notificationsData.forEach((notification, index) => {
+        console.log(`Notification ${index}:`, {
+          id: notification._id,
+          type: notification.type,
+          read: notification.read,
+          message: notification.message?.substring(0, 50) + '...'
+        });
+      });
     } catch (error) {
       console.error('Error fetching notifications:', error);
       toast({
@@ -57,17 +79,6 @@ const MemberNotifications = () => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await notificationApi.getUnreadCount();
-      if (response.data && response.data.data) {
-        setUnreadCount(response.data.data.unreadCount || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
     }
   };
 
