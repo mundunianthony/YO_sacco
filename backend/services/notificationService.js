@@ -146,6 +146,88 @@ class NotificationService {
   }
 
   // Specific notification types
+  static async notifyNewMemberRegistration(adminId, memberName) {
+    return this.createNotification({
+      type: 'new_member',
+      message: `New member registration: ${memberName} has registered and is pending approval.`,
+      user: adminId,
+      priority: 'medium',
+      category: 'member'
+    });
+  }
+
+  static async notifyGuarantorChosen(guarantorId, applicantName, loanId) {
+    return this.createNotification({
+      type: 'guarantor_chosen',
+      message: `${applicantName} has selected you as a guarantor for their loan application.`,
+      user: guarantorId,
+      relatedTo: loanId,
+      onModel: 'Loan',
+      priority: 'medium',
+      category: 'loan'
+    });
+  }
+
+  static async notifyProfileUpdate(userId) {
+    return this.createNotification({
+      type: 'profile_updated',
+      message: 'Your profile has been updated successfully.',
+      user: userId,
+      priority: 'low',
+      category: 'member'
+    });
+  }
+
+  static async notifyMemberStatusChange(adminId, memberName, status) {
+    return this.createNotification({
+      type: 'member_status',
+      message: `Member ${memberName}'s status has been changed to ${status}.`,
+      user: adminId,
+      priority: 'medium',
+      category: 'member'
+    });
+  }
+
+  static async notifyMemberDeactivation(adminId, memberName) {
+    return this.createNotification({
+      type: 'member_deactivation',
+      message: `Member ${memberName} has been deactivated.`,
+      user: adminId,
+      priority: 'high',
+      category: 'member'
+    });
+  }
+
+  static async notifyLoanApprovalRequired(adminId, loanNumber) {
+    return this.createNotification({
+      type: 'loan_approval_required',
+      message: `Loan application ${loanNumber} requires approval.`,
+      user: adminId,
+      priority: 'high',
+      category: 'loan'
+    });
+  }
+
+  static async notifyLoanPaymentOverdue(adminId, memberName, amount) {
+    return this.createNotification({
+      type: 'loan_payment_overdue',
+      message: `${memberName} has an overdue loan payment of UGX${amount.toLocaleString()}.`,
+      user: adminId,
+      priority: 'high',
+      category: 'loan'
+    });
+  }
+
+  static async notifyLargeLoanRequest(adminId, memberName, amount) {
+    return this.createNotification({
+      type: 'large_loan_request',
+      message: `${memberName} has requested a large loan of UGX${amount.toLocaleString()}.`,
+      user: adminId,
+      priority: 'high',
+      category: 'loan'
+    });
+  }
+
   static async notifyNewLoanApplication(adminId, memberName, amount) {
     return this.createNotification({
       type: 'new_loan_application',

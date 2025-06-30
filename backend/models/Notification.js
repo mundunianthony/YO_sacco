@@ -19,6 +19,7 @@ const notificationSchema = new mongoose.Schema({
       'savings_withdrawal',
       'profile_updated',
       'withdrawal_request',
+      'withdrawal_request_submitted',
       'withdrawal_approved',
       'withdrawal_rejected',
       'loan_application',
@@ -28,6 +29,11 @@ const notificationSchema = new mongoose.Schema({
       'loan_payment_overdue',
       'loan_payment_made',
       'loan_payment_successful',
+      'loan_payment',
+      'loan_completed',
+      'loan_status_change',
+      'new_loan_application',
+      'large_transaction',
       'savings_milestone',
       'account_activated',
       'account_status_change',
@@ -52,7 +58,10 @@ const notificationSchema = new mongoose.Schema({
       'staff_action',
       'staff_performance_alert',
       'admin_reminder',
-      'guarantor_chosen'
+      'guarantor_chosen',
+      'maintenance',
+      'system_alert',
+      'unusual_transaction'
     ]
   },
   message: {
@@ -79,7 +88,7 @@ const notificationSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['member', 'loan', 'transaction', 'system', 'general', 'savings', 'withdrawal'],
+    enum: ['member', 'loan', 'transaction', 'system', 'general', 'savings', 'withdrawal', 'payment', 'security'],
     default: 'general'
   },
   read: {
