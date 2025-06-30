@@ -66,6 +66,17 @@ export const memberApi = {
     api.post(`/members/loans/${loanId}/payment`, data),
 
   getAllMembers: () => api.get('/members/all'),
+
+  // Interest
+  getInterestSummary: (params?: { startDate?: string; endDate?: string }) =>
+    api.get('/members/interest/summary', { params }),
+  getInterestHistory: (params?: {
+    page?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string
+  }) => api.get('/members/interest/history', { params }),
+  getInterestProjection: () => api.get('/members/interest/projection'),
 };
 
 // Admin API
@@ -108,6 +119,21 @@ export const adminApi = {
   getUnreadCount: () => api.get('/notifications/unread-count'),
   sendReminder: (memberId: string, data: { message: string }) =>
     api.post(`/admin/members/${memberId}/reminder`, data),
+
+  // Interest Management
+  getInterestStats: () => api.get('/admin/interest/stats'),
+  calculateInterest: (data: {
+    fromDate: string;
+    toDate: string;
+    interestRate?: number
+  }) => api.post('/admin/interest/calculate', data),
+  getInterestHistory: (params?: {
+    page?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+    userId?: string
+  }) => api.get('/admin/interest/history', { params }),
 };
 
 // Notification API

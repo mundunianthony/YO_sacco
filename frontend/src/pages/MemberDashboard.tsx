@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, CreditCard, PiggyBank, TrendingUp } from "lucide-react";
+import { DollarSign, CreditCard, PiggyBank, TrendingUp, Calendar, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { memberApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 interface DashboardData {
   savingsBalance: number;
@@ -24,17 +26,48 @@ interface DashboardData {
   activeLoans: number;
 }
 
+interface InterestProjection {
+  currentBalance: number;
+  interestRate: number;
+  projections: {
+    monthly: number;
+    quarterly: number;
+    yearly: number;
+  };
+}
+
+interface InterestSummary {
+  totalInterest: number;
+  transactionCount: number;
+  averageBalance: number;
+  transactions: Array<{
+    _id: string;
+    amount: number;
+    createdAt: string;
+    description: string;
+  }>;
+}
+
 const MemberDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [interestProjection, setInterestProjection] = useState<InterestProjection | null>(null);
+  const [interestSummary, setInterestSummary] = useState<InterestSummary | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await memberApi.getDashboard();
-        setDashboardData(response.data.data);
+        const [dashboardResponse, projectionResponse, summaryResponse] = await Promise.all([
+          memberApi.getDashboard(),
+          memberApi.getInterestProjection(),
+          memberApi.getInterestSummary()
+        ]);
+        
+        setDashboardData(dashboardResponse.data.data);
+        setInterestProjection(projectionResponse.data.data);
+        setInterestSummary(summaryResponse.data.data);
       } catch (error) {
         toast({
           title: "Error",
@@ -124,6 +157,106 @@ const MemberDashboard = () => {
             </Card>
           ))}
         </div>
+
+        {/* Interest Section */}
+        {interestProjection && (
+          <Card className="border-purple-200 bg-purple-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-800">
+                <TrendingUp className="h-5 w-5" />
+                Interest Earnings & Projections
+              </CardTitle>
+              <CardDescription className="text-purple-600">
+                Your savings are earning {interestProjection.interestRate}% annual interest
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Current Interest Summary */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-purple-800">Interest Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Total Earned (This Year):</span>
+                      <span className="font-medium">UGX{interestSummary?.totalInterest.toLocaleString() ?? '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Average Balance:</span>
+                      <span className="font-medium">UGX{interestSummary?.averageBalance.toLocaleString() ?? '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Interest Transactions:</span>
+                      <span className="font-medium">{interestSummary?.transactionCount ?? 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interest Projections */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-purple-800">Future Projections</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Next Month:</span>
+                      <span className="font-medium">UGX{interestProjection.projections.monthly.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Next Quarter:</span>
+                      <span className="font-medium">UGX{interestProjection.projections.quarterly.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-purple-600">Next Year:</span>
+                      <span className="font-medium">UGX{interestProjection.projections.yearly.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interest Rate Info */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-purple-800">Interest Rate</h3>
+                  <div className="space-y-2">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-purple-800">{interestProjection.interestRate}%</div>
+                      <div className="text-sm text-purple-600">Annual Rate</div>
+                    </div>
+                    <div className="text-xs text-purple-600 text-center">
+                      Interest is calculated daily and applied monthly
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Interest Transactions */}
+              {interestSummary?.transactions && interestSummary.transactions.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="font-semibold text-purple-800 mb-3">Recent Interest Payments</h3>
+                  <div className="space-y-2">
+                    {interestSummary.transactions.slice(0, 3).map((transaction) => (
+                      <div key={transaction._id} className="flex items-center justify-between p-2 bg-white rounded-md">
+                        <div>
+                          <p className="text-sm font-medium">{transaction.description}</p>
+                          <p className="text-xs text-purple-600">
+                            {new Date(transaction.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          +UGX{transaction.amount.toLocaleString()}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3 text-purple-600 border-purple-300"
+                    onClick={() => navigate('/member/interest')}
+                  >
+                    View All Interest History
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>

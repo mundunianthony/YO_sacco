@@ -64,5 +64,101 @@ router.get('/dashboard', getDashboardStats);
 router.get('/notifications', getNotifications);
 router.put('/notifications/:id/read', markNotificationAsRead);
 
+// Interest management routes
+router.get('/interest/stats', async (req, res) => {
+  try {
+    const InterestService = require('../services/interestService');
+    const stats = await InterestService.getInterestStatistics();
+
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching interest statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
+router.post('/interest/calculate', [
+  body('fromDate').isISO8601().withMessage('Valid fromDate is required'),
+  body('toDate').isISO8601().withMessage('Valid toDate is required'),
+  body('interestRate').optional().isFloat({ min: 0, max: 20 }).withMessage('Interest rate must be between 0 and 20%')
+], async (req, res) => {
+  try {
+    const { fromDate, toDate, interestRate } = req.body;
+
+    const InterestService = require('../services/interestService');
+    const result = await InterestService.calculateAndApplyInterestForAllUsers(
+      new Date(fromDate),
+      new Date(toDate),
+      interestRate || InterestService.DEFAULT_INTEREST_RATE
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error calculating interest:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
+router.get('/interest/history', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, startDate, endDate, userId } = req.query;
+
+    const query = { type: 'interest_earned' };
+
+    // Add date filter if provided
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    // Add user filter if provided
+    if (userId) {
+      query.user = userId;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const transactions = await require('../models/Transaction').find(query)
+      .populate('user', 'firstName lastName email memberId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await require('../models/Transaction').countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / parseInt(limit)),
+          totalItems: total,
+          itemsPerPage: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching interest history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
 module.exports = router;
 

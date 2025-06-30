@@ -586,4 +586,123 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
 // @access  Private
 router.get('/all', authenticate, getAllMembers);
 
+// @desc    Get member interest summary
+// @route   GET /api/members/interest/summary
+// @access  Private
+router.get('/interest/summary', authenticate, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Default to current year if no dates provided
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), 0, 1);
+    const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), 11, 31);
+
+    const InterestService = require('../services/interestService');
+    const summary = await InterestService.getUserInterestSummary(req.user.id, start, end);
+
+    res.status(200).json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error('Error fetching interest summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
+// @desc    Get member interest history
+// @route   GET /api/members/interest/history
+// @access  Private
+router.get('/interest/history', authenticate, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, startDate, endDate } = req.query;
+
+    const query = {
+      user: req.user.id,
+      type: 'interest_earned'
+    };
+
+    // Add date filter if provided
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const transactions = await Transaction.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Transaction.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / parseInt(limit)),
+          totalItems: total,
+          itemsPerPage: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching interest history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
+// @desc    Get member interest projection
+// @route   GET /api/members/interest/projection
+// @access  Private
+router.get('/interest/projection', authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const InterestService = require('../services/interestService');
+    const currentBalance = user.savingsBalance || 0;
+    const interestRate = InterestService.DEFAULT_INTEREST_RATE;
+
+    // Calculate projections for different time periods
+    const now = new Date();
+    const projections = {
+      monthly: InterestService.calculateInterest(user, now, new Date(now.getFullYear(), now.getMonth() + 1, 0), interestRate),
+      quarterly: InterestService.calculateInterest(user, now, new Date(now.getFullYear(), now.getMonth() + 3, 0), interestRate),
+      yearly: InterestService.calculateInterest(user, now, new Date(now.getFullYear() + 1, now.getMonth(), 0), interestRate)
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        currentBalance,
+        interestRate,
+        projections
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating interest projection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
+
 module.exports = router; 
