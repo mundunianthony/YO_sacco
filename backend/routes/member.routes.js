@@ -417,10 +417,12 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
 
     const newLoanBalance = loan.remainingBalance - paymentAmount;
     const newSavingsBalance = user.savingsBalance - paymentAmount;
+    const isFullPayment = newLoanBalance === 0;
 
     console.log('Calculated balances:', {
       newLoanBalance,
-      newSavingsBalance
+      newSavingsBalance,
+      isFullPayment
     });
 
     console.log('About to create loan transaction...');
@@ -455,30 +457,47 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
     console.log('Savings transaction created:', savingsTransaction._id);
 
     console.log('About to update loan...');
-    // Update loan
+    // Update loan with new payment tracking fields
     loan.remainingBalance = newLoanBalance;
+    loan.lastPaymentDate = new Date();
 
     // Ensure paymentHistory is an array
     if (!loan.paymentHistory) {
       loan.paymentHistory = [];
     }
 
+    // Add payment to history with enhanced tracking
     loan.paymentHistory.push({
       amount: paymentAmount,
       date: new Date(),
       receiptNumber: loanTransaction.receiptNumber,
-      transaction: loanTransaction._id
+      transaction: loanTransaction._id,
+      paymentType: isFullPayment ? 'full' : 'partial',
+      remainingBalanceAfterPayment: newLoanBalance
     });
 
-    if (newLoanBalance === 0) {
+    // Explicitly calculate progress and total paid amount
+    const totalPaid = loan.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
+    loan.totalPaidAmount = totalPaid;
+    loan.remainingBalance = Math.max(0, loan.totalPayment - totalPaid);
+    loan.paymentProgress = loan.totalPayment > 0 ? totalPaid / loan.totalPayment : 0;
+
+    // Update loan status and next payment date
+    if (isFullPayment) {
       loan.status = 'paid';
-      loan.lastPaymentDate = new Date();
+      loan.nextPaymentDate = null;
+      loan.paymentProgress = 1; // Force 100% for fully paid loans
     } else {
       loan.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
     await loan.save();
     console.log('Loan updated successfully');
+    console.log('Returning loan:', {
+      totalPaidAmount: loan.totalPaidAmount,
+      paymentProgress: loan.paymentProgress,
+      paymentHistory: loan.paymentHistory.length
+    });
 
     console.log('About to update user balances...');
     // Update user balances
@@ -490,9 +509,10 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
     console.log('About to send admin notifications...');
     // Notify admins about the loan payment
     try {
+      const paymentTypeText = isFullPayment ? 'full payment' : 'partial payment';
       await NotificationService.notifyAllAdmins({
         type: 'loan_payment_made',
-        message: `${user.firstName} ${user.lastName} made a loan payment of UGX${paymentAmount.toLocaleString()} for loan #${loan.loanNumber || loan._id}`,
+        message: `${user.firstName} ${user.lastName} made a ${paymentTypeText} of UGX${paymentAmount.toLocaleString()} for loan #${loan.loanNumber || loan._id}. ${isFullPayment ? 'Loan is now fully paid!' : `Remaining balance: UGX${newLoanBalance.toLocaleString()}`}`,
         relatedTo: loan._id,
         onModel: 'Loan',
         priority: 'medium',
@@ -527,7 +547,9 @@ router.post('/loans/:id/payment', authenticate, async (req, res) => {
         savingsTransaction,
         loan,
         newSavingsBalance: user.savingsBalance,
-        newLoanBalance: loan.remainingBalance
+        newLoanBalance: loan.remainingBalance,
+        isFullPayment,
+        paymentType: isFullPayment ? 'full' : 'partial'
       }
     });
   } catch (error) {

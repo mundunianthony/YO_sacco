@@ -12,7 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, DollarSign, Users, AlertTriangle } from "lucide-react";
+import { TrendingUp, DollarSign, Users, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface Loan {
   _id: string;
@@ -45,6 +46,8 @@ interface Loan {
     amount: number;
     date: string;
     receiptNumber: string;
+    paymentType: 'partial' | 'full';
+    remainingBalanceAfterPayment: number;
   }>;
 }
 
@@ -53,7 +56,6 @@ interface LoanStats {
   pending: number;
   active: number;
   paid: number;
-  defaulted: number;
   totalAmount: number;
   totalInterest: number;
 }
@@ -64,7 +66,6 @@ const AdminLoans = () => {
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
   const [approvedLoans, setApprovedLoans] = useState<Loan[]>([]);
   const [paidLoans, setPaidLoans] = useState<Loan[]>([]);
-  const [defaultedLoans, setDefaultedLoans] = useState<Loan[]>([]);
   const [loanStats, setLoanStats] = useState<LoanStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
@@ -90,7 +91,6 @@ const AdminLoans = () => {
       setActiveLoans(loans.filter((loan: Loan) => loan.status === 'active'));
       setApprovedLoans(loans.filter((loan: Loan) => loan.status === 'approved'));
       setPaidLoans(loans.filter((loan: Loan) => loan.status === 'paid' || loan.status === 'cleared'));
-      setDefaultedLoans(loans.filter((loan: Loan) => loan.status === 'defaulted'));
     } catch (error) {
       toast({
         title: "Error",
@@ -187,8 +187,6 @@ const AdminLoans = () => {
       case 'paid':
       case 'cleared':
         return 'default';
-      case 'defaulted':
-        return 'destructive';
       case 'rejected':
         return 'destructive';
       default:
@@ -207,13 +205,25 @@ const AdminLoans = () => {
       case 'paid':
       case 'cleared':
         return 'text-green-600';
-      case 'defaulted':
-        return 'text-red-600';
       case 'rejected':
         return 'text-red-600';
       default:
         return 'text-gray-600';
     }
+  };
+
+  const getPaymentTypeBadge = (paymentType: 'partial' | 'full') => {
+    return paymentType === 'full' ? (
+      <Badge className="bg-green-100 text-green-800 text-xs">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Full Payment
+      </Badge>
+    ) : (
+      <Badge className="bg-blue-100 text-blue-800 text-xs">
+        <Clock className="h-3 w-3 mr-1" />
+        Partial Payment
+      </Badge>
+    );
   };
 
   const viewLoanDetails = (loan: Loan) => {
@@ -245,7 +255,6 @@ const AdminLoans = () => {
     { name: 'Approved', value: approvedLoans.length },
     { name: 'Active', value: activeLoans.length },
     { name: 'Paid/Cleared', value: paidLoans.length },
-    { name: 'Defaulted', value: defaultedLoans.length },
   ];
 
   const loanAmountData = [
@@ -315,13 +324,13 @@ const AdminLoans = () => {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Defaulted Loans</CardTitle>
+                <CardTitle className="text-sm font-medium">Active Loans</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{loanStats.defaulted}</div>
+                <div className="text-2xl font-bold">{loanStats.active}</div>
                 <p className="text-xs text-muted-foreground">
-                  Require attention
+                  Currently being repaid
                 </p>
               </CardContent>
             </Card>
@@ -417,12 +426,11 @@ const AdminLoans = () => {
         </Card>
 
         <Tabs defaultValue="pending" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pending">Pending ({filterLoans(pendingLoans).length})</TabsTrigger>
             <TabsTrigger value="approved">Approved ({filterLoans(approvedLoans).length})</TabsTrigger>
             <TabsTrigger value="active">Active ({filterLoans(activeLoans).length})</TabsTrigger>
             <TabsTrigger value="paid">Paid/Cleared ({filterLoans(paidLoans).length})</TabsTrigger>
-            <TabsTrigger value="defaulted">Defaulted ({filterLoans(defaultedLoans).length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -556,7 +564,7 @@ const AdminLoans = () => {
               <CardHeader>
                 <CardTitle>Active Loans</CardTitle>
                 <CardDescription>
-                  Monitor active loans and repayment schedules
+                  Monitor active loans and repayment progress
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -583,7 +591,25 @@ const AdminLoans = () => {
                         <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
                         <TableCell>UGX{(loan.remainingBalance || 0).toLocaleString()}</TableCell>
                         <TableCell>UGX{(loan.totalPaidAmount || 0).toLocaleString()}</TableCell>
-                        <TableCell>{((loan.paymentProgress || 0) * 100).toFixed(2)}%</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {loan.status === 'rejected' ? (
+                              <span className="text-sm text-gray-500">Not applicable</span>
+                            ) : loan.status === 'paid' || loan.status === 'cleared' ? (
+                              <>
+                                <Progress value={100} className="w-16" />
+                                <span className="text-sm text-muted-foreground">100%</span>
+                              </>
+                            ) : (
+                              <>
+                                <Progress value={((loan.paymentProgress || 0) * 100)} className="w-16" />
+                                <span className="text-sm text-muted-foreground">
+                                  {((loan.paymentProgress || 0) * 100).toFixed(1)}%
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>UGX{(loan.monthlyPayment || 0).toLocaleString()}</TableCell>
                         <TableCell>
                           {loan.nextPaymentDate
@@ -649,62 +675,8 @@ const AdminLoans = () => {
                         </TableCell>
                         <TableCell>
                           <Badge variant="default" className="bg-green-100 text-green-800">
-                            {loan.status === 'paid' ? 'Cleared' : loan.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => viewLoanDetails(loan)}
-                          >
-                            View Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="defaulted">
-            <Card>
-              <CardHeader>
-                <CardTitle>Defaulted Loans</CardTitle>
-                <CardDescription>
-                  Loans that are in default
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Member</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Remaining Balance</TableHead>
-                      <TableHead>Next Payment Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filterLoans(defaultedLoans).map((loan) => (
-                      <TableRow key={loan._id}>
-                        <TableCell className="font-medium">
-                          {loan.user.firstName} {loan.user.lastName}
-                        </TableCell>
-                        <TableCell>UGX{(loan.amount || 0).toLocaleString()}</TableCell>
-                        <TableCell>UGX{(loan.remainingBalance || 0).toLocaleString()}</TableCell>
-                        <TableCell>
-                          {loan.nextPaymentDate
-                            ? new Date(loan.nextPaymentDate).toLocaleDateString()
-                            : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(loan.status)}>
-                            {loan.status}
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Cleared
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -771,6 +743,13 @@ const AdminLoans = () => {
                       <div><span className="font-medium">Monthly Payment:</span> UGX{(selectedLoan.monthlyPayment || 0).toLocaleString()}</div>
                       <div><span className="font-medium">Total Payment:</span> UGX{(selectedLoan.totalPayment || 0).toLocaleString()}</div>
                       <div><span className="font-medium">Remaining Balance:</span> UGX{(selectedLoan.remainingBalance || 0).toLocaleString()}</div>
+                      <div><span className="font-medium">Total Paid:</span> UGX{(selectedLoan.totalPaidAmount || 0).toLocaleString()}</div>
+                      <div><span className="font-medium">Payment Progress:</span> 
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Progress value={((selectedLoan.paymentProgress || 0) * 100)} className="w-24" />
+                          <span className="text-sm">{(selectedLoan.paymentProgress || 0) * 100}%</span>
+                        </div>
+                      </div>
                       <div><span className="font-medium">Next Payment:</span> {selectedLoan.nextPaymentDate ? new Date(selectedLoan.nextPaymentDate).toLocaleDateString() : 'N/A'}</div>
                     </div>
                   </div>
@@ -795,6 +774,8 @@ const AdminLoans = () => {
                             <TableRow>
                               <TableHead>Date</TableHead>
                               <TableHead>Amount</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Remaining Balance</TableHead>
                               <TableHead>Receipt</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -803,6 +784,10 @@ const AdminLoans = () => {
                               <TableRow key={index}>
                                 <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
                                 <TableCell>UGX{payment.amount.toLocaleString()}</TableCell>
+                                <TableCell>
+                                  {getPaymentTypeBadge(payment.paymentType)}
+                                </TableCell>
+                                <TableCell>UGX{(payment.remainingBalanceAfterPayment || 0).toLocaleString()}</TableCell>
                                 <TableCell>{payment.receiptNumber || 'N/A'}</TableCell>
                               </TableRow>
                             ))}

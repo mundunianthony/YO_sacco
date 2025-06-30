@@ -19,6 +19,15 @@ const PaymentSchema = new mongoose.Schema({
   transaction: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Transaction'
+  },
+  paymentType: {
+    type: String,
+    enum: ['partial', 'full'],
+    default: 'partial'
+  },
+  remainingBalanceAfterPayment: {
+    type: Number,
+    required: true
   }
 });
 
@@ -50,7 +59,7 @@ const LoanSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'active', 'paid', 'defaulted'],
+    enum: ['pending', 'approved', 'rejected', 'active', 'paid'],
     default: 'pending'
   },
   interestRate: {
@@ -75,6 +84,16 @@ const LoanSchema = new mongoose.Schema({
   remainingBalance: {
     type: Number,
     required: true
+  },
+  totalPaidAmount: {
+    type: Number,
+    default: 0
+  },
+  paymentProgress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
   },
   nextPaymentDate: {
     type: Date
@@ -125,11 +144,20 @@ LoanSchema.pre('save', function (next) {
   next();
 });
 
-// Calculate remaining balance before saving
+// Calculate remaining balance and payment progress before saving
 LoanSchema.pre('save', function (next) {
   if (this.isModified('paymentHistory')) {
     const totalPaid = this.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
-    this.remainingBalance = this.totalPayment - totalPaid;
+    this.totalPaidAmount = totalPaid;
+    this.remainingBalance = Math.max(0, this.totalPayment - totalPaid);
+    this.paymentProgress = this.totalPayment > 0 ? totalPaid / this.totalPayment : 0;
+
+    // Update status to paid if fully paid
+    if (this.remainingBalance <= 0) {
+      this.status = 'paid';
+      this.remainingBalance = 0;
+      this.paymentProgress = 1;
+    }
   }
   next();
 });

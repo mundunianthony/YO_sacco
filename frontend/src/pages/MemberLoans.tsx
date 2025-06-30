@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Plus, DollarSign, CheckCircle, X, Wallet } from "lucide-react";
+import { CreditCard, Plus, DollarSign, CheckCircle, X, Wallet, Clock } from "lucide-react";
 import { memberApi, adminApi } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 
 interface Loan {
   _id: string;
@@ -26,12 +27,15 @@ interface Loan {
   monthlyPayment: number;
   totalPayment: number;
   remainingBalance: number;
+  totalPaidAmount?: number;
+  paymentProgress?: number;
   nextPaymentDate: string;
   createdAt: string;
   paymentHistory: Array<{
     amount: number;
     date: string;
     receiptNumber: string;
+    paymentType?: 'partial' | 'full';
   }>;
 }
 
@@ -109,6 +113,13 @@ const MemberLoans = () => {
     try {
       const response = await memberApi.getLoans();
       setLoans(response.data.data);
+      // Debug log
+      console.log('Fetched loans:', response.data.data.map(l => ({
+        loanNumber: l.loanNumber,
+        totalPaidAmount: l.totalPaidAmount,
+        paymentProgress: l.paymentProgress,
+        paymentHistory: l.paymentHistory?.length
+      })));
     } catch (error) {
       toast({
         title: "Error",
@@ -276,6 +287,20 @@ const MemberLoans = () => {
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
+  };
+
+  const getPaymentTypeBadge = (paymentType: 'partial' | 'full') => {
+    return paymentType === 'full' ? (
+      <Badge className="bg-green-100 text-green-800 text-xs">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Full Payment
+      </Badge>
+    ) : (
+      <Badge className="bg-blue-100 text-blue-800 text-xs">
+        <Clock className="h-3 w-3 mr-1" />
+        Partial Payment
+      </Badge>
+    );
   };
 
   if (loading) {
@@ -498,27 +523,51 @@ const MemberLoans = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Amount</p>
-                    <p className="font-medium">UGX{loan.amount.toLocaleString()}</p>
+                    <p className="font-medium">UGX{(loan.amount || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Term</p>
-                    <p className="font-medium">{loan.term} months</p>
+                    <p className="font-medium">{loan.term || 0} months</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Interest Rate</p>
-                    <p className="font-medium">{loan.interestRate}%</p>
+                    <p className="font-medium">{loan.interestRate || 0}%</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Monthly Payment</p>
-                    <p className="font-medium">UGX{loan.monthlyPayment.toLocaleString()}</p>
+                    <p className="font-medium">UGX{(loan.monthlyPayment || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total Payment</p>
-                    <p className="font-medium">UGX{loan.totalPayment.toLocaleString()}</p>
+                    <p className="font-medium">UGX{(loan.totalPayment || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Remaining Balance</p>
-                    <p className="font-medium text-lg text-primary">UGX{loan.remainingBalance.toLocaleString()}</p>
+                    <p className="font-medium text-lg text-primary">UGX{(loan.remainingBalance || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Paid</p>
+                    <p className="font-medium text-green-600">UGX{(loan.totalPaidAmount || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Payment Progress</p>
+                    <div className="flex items-center space-x-2">
+                      {loan.status === 'rejected' ? (
+                        <span className="text-sm text-gray-500">Not applicable</span>
+                      ) : loan.status === 'paid' || loan.status === 'cleared' ? (
+                        <>
+                          <Progress value={100} className="w-16" />
+                          <span className="text-sm font-medium text-green-600">100%</span>
+                        </>
+                      ) : (
+                        <>
+                          <Progress value={((loan.paymentProgress || 0) * 100)} className="w-16" />
+                          <span className="text-sm font-medium text-green-600">
+                            {((loan.paymentProgress || 0) * 100).toFixed(1)}%
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   {loan.nextPaymentDate && (
                     <div>
@@ -537,14 +586,16 @@ const MemberLoans = () => {
                             <TableHead>Date</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>Receipt</TableHead>
+                            <TableHead>Payment Type</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {loan.paymentHistory.map((payment, index) => (
                             <TableRow key={index}>
                               <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
-                              <TableCell>UGX{payment.amount.toLocaleString()}</TableCell>
-                              <TableCell>{payment.receiptNumber}</TableCell>
+                              <TableCell>UGX{(payment.amount || 0).toLocaleString()}</TableCell>
+                              <TableCell>{payment.receiptNumber || 'N/A'}</TableCell>
+                              <TableCell>{getPaymentTypeBadge(payment.paymentType || 'partial')}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -599,7 +650,7 @@ const MemberLoans = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="partial">Partial Payment</SelectItem>
-                    <SelectItem value="full">Full Payment (UGX{selectedLoan?.remainingBalance.toLocaleString()})</SelectItem>
+                    <SelectItem value="full">Full Payment (UGX{(selectedLoan?.remainingBalance || 0).toLocaleString()})</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
