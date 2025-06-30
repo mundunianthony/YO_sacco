@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { adminApi } from "@/lib/api";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock, Eye, DollarSign, TrendingUp } from "lucide-react";
 
 interface WithdrawalRequest {
   _id: string;
@@ -25,6 +26,29 @@ interface WithdrawalRequest {
   description: string;
 }
 
+interface MemberDetails {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  memberId: string;
+  savingsBalance: number;
+  phoneNumber: string;
+  status: string;
+  createdAt: string;
+}
+
+interface Transaction {
+  _id: string;
+  type: string;
+  amount: number;
+  status: string;
+  paymentMethod: string;
+  description: string;
+  createdAt: string;
+  balanceAfter: number;
+}
+
 const AdminWithdrawals = () => {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +56,10 @@ const AdminWithdrawals = () => {
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [memberDetails, setMemberDetails] = useState<MemberDetails | null>(null);
+  const [memberTransactions, setMemberTransactions] = useState<Transaction[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const { toast } = useToast();
 
   const fetchWithdrawals = async () => {
@@ -121,6 +149,65 @@ const AdminWithdrawals = () => {
     setIsRejectDialogOpen(true);
   };
 
+  const openDetailsDialog = async (withdrawal: WithdrawalRequest) => {
+    setSelectedWithdrawal(withdrawal);
+    setIsDetailsDialogOpen(true);
+    setDetailsLoading(true);
+    
+    try {
+      // Fetch member details and transactions
+      const [memberResponse, transactionsResponse] = await Promise.all([
+        adminApi.getUserById(withdrawal.user._id || withdrawal.user.memberId),
+        adminApi.getMemberTransactions(withdrawal.user._id || withdrawal.user.memberId)
+      ]);
+
+      if (memberResponse.data.success) {
+        setMemberDetails(memberResponse.data.data);
+      }
+
+      if (transactionsResponse.data.success) {
+        setMemberTransactions(transactionsResponse.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching member details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load member details",
+        variant: "destructive",
+      });
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const getTransactionTypeColor = (type: string) => {
+    switch (type) {
+      case 'deposit':
+        return 'bg-green-100 text-green-800';
+      case 'withdrawal':
+        return 'bg-red-100 text-red-800';
+      case 'interest_earned':
+        return 'bg-blue-100 text-blue-800';
+      case 'loan_payment':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -188,6 +275,15 @@ const AdminWithdrawals = () => {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={() => openDetailsDialog(withdrawal)}
+                          disabled={processingId === withdrawal._id}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View Details
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => handleApprove(withdrawal._id)}
                           disabled={processingId === withdrawal._id}
                           className="bg-green-600 hover:bg-green-700"
@@ -212,6 +308,188 @@ const AdminWithdrawals = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Member Details Dialog */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Member Details - {selectedWithdrawal?.user.firstName} {selectedWithdrawal?.user.lastName}
+              </DialogTitle>
+              <DialogDescription>
+                Review member balance and recent transactions to guide your decision
+              </DialogDescription>
+            </DialogHeader>
+            
+            {detailsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-2">Loading member details...</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Member Information */}
+                {memberDetails && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5" />
+                        Member Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Member ID</p>
+                          <p className="font-medium">{memberDetails.memberId}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                          <p className="font-medium">{memberDetails.firstName} {memberDetails.lastName}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Email</p>
+                          <p className="font-medium">{memberDetails.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                          <p className="font-medium">{memberDetails.phoneNumber || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Status</p>
+                          <Badge variant={memberDetails.status === 'active' ? 'default' : 'secondary'}>
+                            {memberDetails.status}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Member Since</p>
+                          <p className="font-medium">{new Date(memberDetails.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Current Balance */}
+                {memberDetails && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Current Balance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-green-600">
+                          UGX{memberDetails.savingsBalance.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Available for withdrawal
+                        </p>
+                        {selectedWithdrawal && (
+                          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                            <p className="text-sm font-medium text-blue-800">
+                              Withdrawal Request: UGX{selectedWithdrawal.amount.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">
+                              {memberDetails.savingsBalance >= selectedWithdrawal.amount 
+                                ? '✓ Sufficient balance available' 
+                                : '✗ Insufficient balance'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Recent Transactions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Transactions</CardTitle>
+                    <CardDescription>
+                      Last {memberTransactions.length} transactions to help guide your decision
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {memberTransactions.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">No transactions found for this member</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Method</TableHead>
+                              <TableHead>Description</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {memberTransactions.slice(0, 10).map((transaction) => (
+                              <TableRow key={transaction._id}>
+                                <TableCell>
+                                  {new Date(transaction.createdAt).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={getTransactionTypeColor(transaction.type)}>
+                                    {transaction.type}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  UGX{transaction.amount.toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={getStatusColor(transaction.status)}>
+                                    {transaction.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>{transaction.paymentMethod || '-'}</TableCell>
+                                <TableCell className="max-w-xs truncate">
+                                  {transaction.description || '-'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                {selectedWithdrawal && (
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button
+                      onClick={() => handleApprove(selectedWithdrawal._id)}
+                      disabled={processingId === selectedWithdrawal._id}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Approve Withdrawal
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setIsDetailsDialogOpen(false);
+                        openRejectDialog(selectedWithdrawal);
+                      }}
+                      disabled={processingId === selectedWithdrawal._id}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Reject Withdrawal
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Rejection Dialog */}
         <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
