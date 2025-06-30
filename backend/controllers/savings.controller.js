@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const { TotalSavingsPool } = require('../models/Savings');
 const { validationResult } = require('express-validator');
 const NotificationService = require('../services/notificationService');
 
@@ -30,6 +31,13 @@ exports.makeDeposit = async (req, res) => {
 
     // Calculate new balance
     const newBalance = (user.savingsBalance || 0) + amount;
+
+    // Update total savings pool
+    const totalSavingsPool = await TotalSavingsPool.getPool();
+    totalSavingsPool.totalAmount = totalSavingsPool.totalAmount + amount;
+    totalSavingsPool.availableAmount = totalSavingsPool.availableAmount + amount;
+    totalSavingsPool.lastUpdated = new Date();
+    await totalSavingsPool.save();
 
     // Create transaction record
     const transaction = await Transaction.create({
@@ -266,10 +274,21 @@ exports.approveWithdrawal = async (req, res) => {
       user.savingsBalance = user.savingsBalance - transaction.amount;
       await user.save();
 
+      // Update total savings pool
+      const totalSavingsPool = await TotalSavingsPool.getPool();
+      totalSavingsPool.totalAmount = Math.max(0, totalSavingsPool.totalAmount - transaction.amount);
+      totalSavingsPool.availableAmount = Math.max(0, totalSavingsPool.availableAmount - transaction.amount);
+      totalSavingsPool.lastUpdated = new Date();
+      await totalSavingsPool.save();
+
       console.log('User balance updated:', {
         oldBalance,
         newBalance: user.savingsBalance,
         amountDeducted: transaction.amount
+      });
+      console.log('Total savings pool updated:', {
+        totalAmount: totalSavingsPool.totalAmount,
+        availableAmount: totalSavingsPool.availableAmount
       });
 
       // Create approval notification for user

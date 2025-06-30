@@ -1,6 +1,7 @@
 const Loan = require('../models/Loan');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const { TotalSavingsPool } = require('../models/Savings');
 const NotificationService = require('../services/notificationService');
 const { validationResult } = require('express-validator');
 
@@ -191,6 +192,42 @@ exports.updateLoanStatus = async (req, res) => {
       loan.approvedAt = Date.now();
     }
 
+    // If loan is being activated, deduct from the total savings pool
+    if (status === 'active' && oldStatus !== 'active') {
+      const totalSavingsPool = await TotalSavingsPool.getPool();
+
+      // Check if there's enough money in the savings pool
+      if (totalSavingsPool.availableAmount < loan.amount) {
+        return res.status(400).json({
+          success: false,
+          error: `Insufficient funds in savings pool. Available: UGX${totalSavingsPool.availableAmount.toLocaleString()}, Required: UGX${loan.amount.toLocaleString()}`
+        });
+      }
+
+      // Deduct loan amount from available savings pool
+      const oldAvailableAmount = totalSavingsPool.availableAmount;
+      totalSavingsPool.availableAmount = Math.max(0, totalSavingsPool.availableAmount - loan.amount);
+      totalSavingsPool.loanedAmount = totalSavingsPool.loanedAmount + loan.amount;
+      totalSavingsPool.lastUpdated = new Date();
+      await totalSavingsPool.save();
+
+      // Create transaction record for the loan activation
+      await Transaction.create({
+        user: loan.user._id,
+        type: 'loan_disbursement',
+        amount: loan.amount,
+        status: 'completed',
+        category: 'loan',
+        paymentMethod: 'bank_transfer',
+        description: `Loan #${loan.loanNumber} activated - amount deducted from savings pool`,
+        balanceAfter: totalSavingsPool.availableAmount,
+        loan: loan._id,
+        processedBy: req.user.id
+      });
+
+      console.log(`Loan activation: Total savings pool available amount reduced from ${oldAvailableAmount.toLocaleString()} to ${totalSavingsPool.availableAmount.toLocaleString()}`);
+    }
+
     await loan.save();
 
     // Find all admin users
@@ -212,6 +249,8 @@ exports.updateLoanStatus = async (req, res) => {
     let message = `Your loan application status has been updated to ${status}`;
     if (status === 'rejected' && reason) {
       message += `. Reason: ${reason}`;
+    } else if (status === 'active') {
+      message += `. Your loan of UGX${loan.amount.toLocaleString()} has been activated and disbursed.`;
     }
 
     await NotificationService.createNotification({

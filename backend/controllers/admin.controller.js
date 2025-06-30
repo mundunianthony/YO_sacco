@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Loan = require('../models/Loan');
 const Transaction = require('../models/Transaction');
+const { TotalSavingsPool } = require('../models/Savings');
 const { validationResult } = require('express-validator');
 
 // @desc    Get all users
@@ -300,6 +301,8 @@ exports.updateLoanStatus = async (req, res) => {
       });
     }
 
+    const oldStatus = loan.status;
+
     // Update loan status
     loan.status = status;
 
@@ -315,6 +318,40 @@ exports.updateLoanStatus = async (req, res) => {
       }
     } else if (status === 'rejected') {
       loan.rejectionReason = rejectionReason;
+    } else if (status === 'active' && oldStatus !== 'active') {
+      // If loan is being activated, deduct from the total savings pool
+      const totalSavingsPool = await TotalSavingsPool.getPool();
+
+      // Check if there's enough money in the savings pool
+      if (totalSavingsPool.availableAmount < loan.amount) {
+        return res.status(400).json({
+          success: false,
+          error: `Insufficient funds in savings pool. Available: UGX${totalSavingsPool.availableAmount.toLocaleString()}, Required: UGX${loan.amount.toLocaleString()}`
+        });
+      }
+
+      // Deduct loan amount from available savings pool
+      const oldAvailableAmount = totalSavingsPool.availableAmount;
+      totalSavingsPool.availableAmount = Math.max(0, totalSavingsPool.availableAmount - loan.amount);
+      totalSavingsPool.loanedAmount = totalSavingsPool.loanedAmount + loan.amount;
+      totalSavingsPool.lastUpdated = new Date();
+      await totalSavingsPool.save();
+
+      // Create transaction record for the loan activation
+      await Transaction.create({
+        user: loan.user,
+        type: 'loan_disbursement',
+        amount: loan.amount,
+        status: 'completed',
+        category: 'loan',
+        paymentMethod: 'bank_transfer',
+        description: `Loan #${loan.loanNumber} activated - amount deducted from savings pool`,
+        balanceAfter: totalSavingsPool.availableAmount,
+        loan: loan._id,
+        processedBy: req.user.id
+      });
+
+      console.log(`Loan activation: Total savings pool available amount reduced from ${oldAvailableAmount.toLocaleString()} to ${totalSavingsPool.availableAmount.toLocaleString()}`);
     } else if (status === 'paid') {
       // When a loan is marked as paid, reduce the user's loan balance
       const user = await User.findById(loan.user);
@@ -329,6 +366,24 @@ exports.updateLoanStatus = async (req, res) => {
     // Populate user and approver details
     await loan.populate('user', 'firstName lastName email memberId');
     await loan.populate('approvedBy', 'firstName lastName');
+
+    // Create notification for the loan applicant
+    let message = `Your loan application status has been updated to ${status}`;
+    if (status === 'rejected' && rejectionReason) {
+      message += `. Reason: ${rejectionReason}`;
+    } else if (status === 'active') {
+      message += `. Your loan of UGX${loan.amount.toLocaleString()} has been activated and disbursed.`;
+    }
+
+    const NotificationService = require('../services/notificationService');
+    await NotificationService.createNotification({
+      type: 'loan_status_change',
+      message: message,
+      user: loan.user,
+      relatedTo: loan._id,
+      onModel: 'Loan',
+      priority: 'high'
+    });
 
     res.status(200).json({
       success: true,
@@ -380,6 +435,9 @@ exports.getDashboardStats = async (req, res) => {
       }
     ]);
 
+    // Get total savings pool information
+    const totalSavingsPool = await TotalSavingsPool.getPool();
+
     const totalSavings = savingsStats[0]?.totalSavings || 0;
     const previousMonthSavings = savingsStats[0]?.previousMonthSavings || 0;
     const monthlyGrowth = previousMonthSavings > 0
@@ -422,7 +480,13 @@ exports.getDashboardStats = async (req, res) => {
         },
         savings: {
           total: totalSavings,
-          monthlyGrowth: parseFloat(monthlyGrowth.toFixed(1))
+          monthlyGrowth: parseFloat(monthlyGrowth.toFixed(1)),
+          pool: {
+            totalAmount: totalSavingsPool.totalAmount,
+            availableAmount: totalSavingsPool.availableAmount,
+            loanedAmount: totalSavingsPool.loanedAmount,
+            lastUpdated: totalSavingsPool.lastUpdated
+          }
         },
         recentTransactions,
         recentLoans,
