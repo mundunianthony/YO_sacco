@@ -118,7 +118,7 @@ export const adminApi = {
   markAllNotificationsAsRead: () => api.put('/notifications/read-all'),
   getUnreadCount: () => api.get('/notifications/unread-count'),
   sendReminder: (memberId: string, data: { message: string }) =>
-    api.post(`/admin/members/${memberId}/reminder`, data),
+    api.post(`/admin/users/${memberId}/reminder`, data),
 
   // Interest Management
   getInterestStats: () => api.get('/admin/interest/stats'),

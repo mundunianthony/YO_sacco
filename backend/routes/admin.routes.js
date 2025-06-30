@@ -21,6 +21,9 @@ const {
   markNotificationAsRead
 } = require('../controllers/admin.controller');
 
+// Import savings controller for withdrawal approval
+const { approveWithdrawal } = require('../controllers/savings.controller');
+
 const { protect, authorize } = require('../middleware/auth');
 const { body } = require('express-validator');
 
@@ -53,6 +56,10 @@ router.put('/loans/:id/status', [
 // Transaction routes
 router.get('/transactions', getTransactions);
 router.get('/withdrawals/pending', getPendingWithdrawals);
+router.put('/withdrawals/:id/approve', [
+  body('status').isIn(['approved', 'rejected']).withMessage('Status must be either approved or rejected'),
+  body('rejectionReason').optional().notEmpty().withMessage('Rejection reason is required when status is rejected')
+], approveWithdrawal);
 
 // Report routes
 router.get('/reports/monthly', generateMonthlyReport);

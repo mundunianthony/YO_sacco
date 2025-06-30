@@ -141,7 +141,7 @@ const MemberNotifications = () => {
       case 'withdrawal':
       case 'interest_earned':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'reminder':
+      case 'admin_reminder':
       case 'overdue':
         return <AlertCircle className="h-4 w-4 text-orange-600" />;
       default:
@@ -165,7 +165,7 @@ const MemberNotifications = () => {
         return 'Withdrawal';
       case 'interest_earned':
         return 'Interest Earned';
-      case 'reminder':
+      case 'admin_reminder':
         return 'Reminder';
       case 'overdue':
         return 'Overdue';

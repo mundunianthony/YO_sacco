@@ -657,11 +657,11 @@ exports.sendReminder = async (req, res) => {
     // Create notification for the user
     const NotificationService = require('../services/notificationService');
     await NotificationService.createNotification({
-      type: 'reminder',
+      type: 'admin_reminder',
       message: message,
       user: id,
       priority: 'high',
-      category: 'admin'
+      category: 'general'
     });
 
     res.status(200).json({
