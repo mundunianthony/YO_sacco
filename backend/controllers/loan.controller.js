@@ -188,6 +188,26 @@ exports.updateLoanStatus = async (req, res) => {
     if (reason) loan.rejectionReason = reason;
 
     if (status === 'approved') {
+      // Check if the loan amount is more than the available balance in the savings pool
+      const totalSavingsPool = await TotalSavingsPool.getPool();
+      if (totalSavingsPool.availableAmount < loan.amount) {
+        loan.status = 'rejected';
+        loan.rejectionReason = 'Insufficient funds in savings pool';
+        await loan.save();
+        const NotificationService = require('../services/notificationService');
+        await NotificationService.createNotification({
+          type: 'loan_status_change',
+          message: `Your loan application for UGX${loan.amount.toLocaleString()} could not be approved because the requested amount is not available at the moment. Please try again later.`,
+          user: loan.user._id,
+          relatedTo: loan._id,
+          onModel: 'Loan',
+          priority: 'high'
+        });
+        return res.status(400).json({
+          success: false,
+          error: `This amount is not available at the moment, please try again later.`
+        });
+      }
       loan.approvedBy = req.user.id;
       loan.approvedAt = Date.now();
     }
@@ -246,7 +266,7 @@ exports.updateLoanStatus = async (req, res) => {
     }
 
     // Create notification for the loan applicant
-    let message = `Your loan application status has been updated to ${status}`;
+    let message = `Your loan application status has been ${status}`;
     if (status === 'rejected' && reason) {
       message += `. Reason: ${reason}`;
     } else if (status === 'active') {

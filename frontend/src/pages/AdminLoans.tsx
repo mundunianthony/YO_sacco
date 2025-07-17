@@ -120,10 +120,22 @@ const AdminLoans = () => {
       });
       fetchLoans();
       fetchLoanStats();
-    } catch (error) {
+    } catch (error: any) {
+      let errorMessage = "Failed to approve loan";
+      if (error.response && error.response.data && error.response.data.error) {
+        const backendMsg = error.response.data.error.toLowerCase();
+        if (
+          backendMsg.includes('not available at the moment') ||
+          backendMsg.includes('insufficient funds')
+        ) {
+          errorMessage = "Loan rejected due to insufficient funds.";
+        } else {
+          errorMessage = error.response.data.error;
+        }
+      }
       toast({
         title: "Error",
-        description: "Failed to approve loan",
+        description: errorMessage,
         variant: "destructive",
       });
     }

@@ -251,7 +251,7 @@ class NotificationService {
         message = 'Your loan has been activated and funds have been disbursed.';
         break;
       default:
-        message = `Your loan status has been updated to ${status}.`;
+        message = `Your loan status has ${status}.`;
     }
 
     return this.createNotification({
