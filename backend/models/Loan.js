@@ -12,13 +12,22 @@ const PaymentSchema = new mongoose.Schema({
   receiptNumber: {
     type: String,
     required: true,
-    default: function() {
+    default: function () {
       return `REC${Date.now()}${Math.floor(Math.random() * 1000)}`;
     }
   },
   transaction: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Transaction'
+  },
+  paymentType: {
+    type: String,
+    enum: ['partial', 'full'],
+    default: 'partial'
+  },
+  remainingBalanceAfterPayment: {
+    type: Number,
+    required: true
   }
 });
 
@@ -32,7 +41,7 @@ const LoanSchema = new mongoose.Schema({
     type: String,
     unique: true,
     required: true,
-    default: function() {
+    default: function () {
       const timestamp = Date.now().toString();
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       return `LOAN${timestamp}${random}`;
@@ -50,7 +59,7 @@ const LoanSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'active', 'paid', 'defaulted'],
+    enum: ['pending', 'approved', 'rejected', 'active', 'paid'],
     default: 'pending'
   },
   interestRate: {
@@ -76,6 +85,16 @@ const LoanSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  totalPaidAmount: {
+    type: Number,
+    default: 0
+  },
+  paymentProgress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
+  },
   nextPaymentDate: {
     type: Date
   },
@@ -88,10 +107,8 @@ const LoanSchema = new mongoose.Schema({
     trim: true
   },
   guarantors: [{
-    name: String,
-    phone: String,
-    address: String,
-    relationship: String
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }],
   documents: [{
     type: String,
@@ -122,16 +139,25 @@ const LoanSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt timestamp before saving
-LoanSchema.pre('save', function(next) {
+LoanSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-// Calculate remaining balance before saving
-LoanSchema.pre('save', function(next) {
+// Calculate remaining balance and payment progress before saving
+LoanSchema.pre('save', function (next) {
   if (this.isModified('paymentHistory')) {
     const totalPaid = this.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
-    this.remainingBalance = this.totalPayment - totalPaid;
+    this.totalPaidAmount = totalPaid;
+    this.remainingBalance = Math.max(0, this.totalPayment - totalPaid);
+    this.paymentProgress = this.totalPayment > 0 ? totalPaid / this.totalPayment : 0;
+
+    // Update status to paid if fully paid
+    if (this.remainingBalance <= 0) {
+      this.status = 'paid';
+      this.remainingBalance = 0;
+      this.paymentProgress = 1;
+    }
   }
   next();
 });

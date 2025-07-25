@@ -18,6 +18,7 @@ interface SavingsData {
     createdAt: string;
     description: string;
     balanceAfter: number;
+    status: string;
   }>;
 }
 
@@ -158,14 +159,14 @@ const MemberSavings = () => {
         return;
       }
 
-      await memberApi.makeWithdrawal({
+      const response = await memberApi.makeWithdrawal({
         amount,
         paymentMethod: 'cash', // You might want to add a payment method selector
       });
 
       toast({
-        title: "Withdrawal Successful",
-        description: `UGX${amount.toLocaleString()} has been withdrawn from your savings`,
+        title: "Withdrawal Request Submitted",
+        description: response.data.message || "Please wait for admin approval",
       });
       
       setWithdrawAmount("");
@@ -174,7 +175,7 @@ const MemberSavings = () => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to process withdrawal",
+        description: "Failed to submit withdrawal request",
         variant: "destructive",
       });
     }
@@ -338,7 +339,7 @@ const MemberSavings = () => {
                         {transaction.amount > 0 ? '+' : ''}UGX{Math.abs(transaction.amount).toLocaleString()}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Balance: UGX{transaction.balanceAfter.toLocaleString()}
+                        {transaction.status === 'pending' ? 'Pending Approval' : 'Completed'}
                       </p>
                     </div>
                   </div>

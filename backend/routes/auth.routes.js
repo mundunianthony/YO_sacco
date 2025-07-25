@@ -11,6 +11,21 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Custom phone number validation
+const validatePhoneNumber = (value) => {
+  // Remove all non-digit characters
+  const cleaned = value.replace(/\D/g, '');
+
+  // Check if it starts with 0 and has exactly 10 digits
+  const phoneRegex = /^0\d{9}$/;
+
+  if (!phoneRegex.test(cleaned)) {
+    throw new Error('Phone number must start with 0 and be exactly 10 digits (e.g., 0712345678)');
+  }
+
+  return true;
+};
+
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
@@ -18,8 +33,8 @@ router.post('/register', [
   check('firstName', 'First name is required').not().isEmpty(),
   check('lastName', 'Last name is required').not().isEmpty(),
   check('email', 'Please include a valid email').isEmail(),
-  check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
-  check('phoneNumber', 'Phone number is required').not().isEmpty(),
+  check('password', 'Please enter a password with 8 or more characters').isLength({ min: 8 }),
+  check('phoneNumber').custom(validatePhoneNumber),
   check('address', 'Address is required').not().isEmpty()
 ], register);
 

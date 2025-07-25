@@ -1,5 +1,7 @@
 const Loan = require('../models/Loan');
 const User = require('../models/User');
+const Transaction = require('../models/Transaction');
+const { TotalSavingsPool } = require('../models/Savings');
 const NotificationService = require('../services/notificationService');
 const { validationResult } = require('express-validator');
 
@@ -16,7 +18,7 @@ exports.applyForLoan = async (req, res) => {
   }
 
   try {
-    const { amount, purpose, term } = req.body;
+    const { amount, purpose, term, collateral, guarantors } = req.body;
 
     // Fetch user
     const user = await User.findById(req.user.id);
@@ -24,12 +26,32 @@ exports.applyForLoan = async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    // Rule 1: Minimum savings
-    if ((user.savingsBalance || 0) < 10000) {
-      return res.status(400).json({ success: false, error: 'You must have at least UGX 10,000 in savings to qualify for a loan.' });
+    // Check if user already has an active loan
+    const existingLoan = await Loan.findOne({
+      user: req.user.id,
+      status: { $in: ['pending', 'approved', 'active'] }
+    });
+
+    if (existingLoan) {
+      return res.status(400).json({
+        success: false,
+        error: 'You already have an active loan application or loan. Please clear your existing loan before applying for a new one.'
+      });
     }
 
-    // Rule 2: Max loan is 3x savings
+    // Rule 1: Minimum savings
+    if ((user.savingsBalance || 0) < 1000000) {
+      return res.status(400).json({ success: false, error: 'You must have at least UGX 1,000,000 in savings to qualify for a loan.' });
+    }
+
+    // Rule 2: Account age
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    if (user.createdAt > oneDayAgo) {
+      return res.status(400).json({ success: false, error: 'You must be a member for at least one day to qualify for a loan.' });
+    }
+
+    // Rule 3: Max loan is 3x savings
     if (amount > 3 * (user.savingsBalance || 0)) {
       return res.status(400).json({ success: false, error: 'You can only borrow up to 3 times your savings balance.' });
     }
@@ -40,12 +62,23 @@ exports.applyForLoan = async (req, res) => {
     }
 
     // Create loan application
+    const interestRate = 10; // 10% interest rate
+    const totalPayment = amount + (amount * interestRate / 100);
+    const monthlyPayment = totalPayment / term;
+
     const loan = await Loan.create({
       user: req.user.id,
       amount,
       purpose,
       term,
-      status: 'pending'
+      interestRate,
+      monthlyPayment,
+      totalPayment,
+      remainingBalance: totalPayment,
+      status: 'pending',
+      collateral: collateral || '',
+      guarantors: guarantors || [],
+      loanNumber: `LN${Date.now()}`
     });
 
     // Find all admin users
@@ -63,7 +96,7 @@ exports.applyForLoan = async (req, res) => {
     // Create notification for the applicant
     await NotificationService.createNotification({
       type: 'loan_application',
-      message: `Your loan application for UGX${amount} has been received and is pending approval.`,
+      message: `Your loan application for UGX${amount.toLocaleString()} has been received and is pending approval.`,
       user: req.user.id,
       relatedTo: loan._id,
       onModel: 'Loan',
@@ -90,7 +123,7 @@ exports.getMyLoans = async (req, res) => {
   try {
     const loans = await Loan.find({ user: req.user.id })
       .sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       count: loans.length,
@@ -153,6 +186,48 @@ exports.updateLoanStatus = async (req, res) => {
     const oldStatus = loan.status;
     loan.status = status;
     if (reason) loan.rejectionReason = reason;
+
+    if (status === 'approved') {
+      loan.approvedBy = req.user.id;
+      loan.approvedAt = Date.now();
+    }
+
+    // If loan is being activated, deduct from the total savings pool
+    if (status === 'active' && oldStatus !== 'active') {
+      const totalSavingsPool = await TotalSavingsPool.getPool();
+
+      // Check if there's enough money in the savings pool
+      if (totalSavingsPool.availableAmount < loan.amount) {
+        return res.status(400).json({
+          success: false,
+          error: `Insufficient funds in savings pool. Available: UGX${totalSavingsPool.availableAmount.toLocaleString()}, Required: UGX${loan.amount.toLocaleString()}`
+        });
+      }
+
+      // Deduct loan amount from available savings pool
+      const oldAvailableAmount = totalSavingsPool.availableAmount;
+      totalSavingsPool.availableAmount = Math.max(0, totalSavingsPool.availableAmount - loan.amount);
+      totalSavingsPool.loanedAmount = totalSavingsPool.loanedAmount + loan.amount;
+      totalSavingsPool.lastUpdated = new Date();
+      await totalSavingsPool.save();
+
+      // Create transaction record for the loan activation
+      await Transaction.create({
+        user: loan.user._id,
+        type: 'loan_disbursement',
+        amount: loan.amount,
+        status: 'completed',
+        category: 'loan',
+        paymentMethod: 'bank_transfer',
+        description: `Loan #${loan.loanNumber} activated - amount deducted from savings pool`,
+        balanceAfter: totalSavingsPool.availableAmount,
+        loan: loan._id,
+        processedBy: req.user.id
+      });
+
+      console.log(`Loan activation: Total savings pool available amount reduced from ${oldAvailableAmount.toLocaleString()} to ${totalSavingsPool.availableAmount.toLocaleString()}`);
+    }
+
     await loan.save();
 
     // Find all admin users
@@ -162,7 +237,7 @@ exports.updateLoanStatus = async (req, res) => {
     for (const admin of adminUsers) {
       await NotificationService.createNotification({
         type: 'loan_status_change',
-        message: `Loan #${loan._id} status changed from ${oldStatus} to ${status}`,
+        message: `Loan #${loan.loanNumber} status changed from ${oldStatus} to ${status}`,
         user: admin._id,
         relatedTo: loan._id,
         onModel: 'Loan',
@@ -174,6 +249,8 @@ exports.updateLoanStatus = async (req, res) => {
     let message = `Your loan application status has been updated to ${status}`;
     if (status === 'rejected' && reason) {
       message += `. Reason: ${reason}`;
+    } else if (status === 'active') {
+      message += `. Your loan of UGX${loan.amount.toLocaleString()} has been activated and disbursed.`;
     }
 
     await NotificationService.createNotification({
@@ -212,7 +289,7 @@ exports.makeLoanPayment = async (req, res) => {
 
   try {
     const { amount, paymentMethod } = req.body;
-    const loan = await Loan.findById(req.params.id);
+    const loan = await Loan.findById(req.params.id).populate('user');
 
     if (!loan) {
       return res.status(404).json({
@@ -221,26 +298,50 @@ exports.makeLoanPayment = async (req, res) => {
       });
     }
 
+    // Verify loan belongs to the user
+    if (loan.user._id.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to make payments on this loan'
+      });
+    }
+
+    // Check if loan is active
+    if (loan.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        error: 'Can only make payments on active loans'
+      });
+    }
+
+    // Validate payment amount
+    if (amount > loan.remainingBalance) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment amount cannot exceed remaining balance'
+      });
+    }
+
     // Create payment record
     const payment = {
       amount,
       date: Date.now(),
-      paymentMethod
+      paymentMethod,
+      receiptNumber: `RCP${Date.now()}`
     };
 
     // Add payment to history
     loan.paymentHistory.push(payment);
     loan.lastPaymentDate = Date.now();
-    loan.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Next payment in 30 days
 
     // Update remaining balance
-    const totalPaid = loan.paymentHistory.reduce((sum, payment) => sum + payment.amount, 0);
-    loan.remainingBalance = loan.totalPayment - totalPaid;
+    loan.remainingBalance = Math.max(0, loan.remainingBalance - amount);
 
-    // Update loan status if fully paid
+    // Check if loan is fully paid
     if (loan.remainingBalance <= 0) {
-      loan.status = 'paid';
+      loan.status = 'paid'; // This will show as "Cleared" in the frontend
       loan.remainingBalance = 0;
+      loan.nextPaymentDate = null;
 
       // Check if loan was overdue
       const now = new Date();
@@ -252,23 +353,49 @@ exports.makeLoanPayment = async (req, res) => {
           overdue = true;
         }
       }
+
       if (overdue) {
         // Suspend loan privilege for 1 month
-        const user = await User.findById(loan.user);
+        const user = await User.findById(loan.user._id);
         user.loanPrivilegeSuspended = true;
         user.loanPrivilegeSuspendedUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
         await user.save();
       }
+
+      // Create loan completion notification
+      await NotificationService.createNotification({
+        type: 'loan_completed',
+        message: `Congratulations! Your loan #${loan.loanNumber} has been fully paid and is now cleared.`,
+        user: req.user.id,
+        relatedTo: loan._id,
+        onModel: 'Loan',
+        priority: 'high'
+      });
+    } else {
+      // Set next payment date (30 days from now)
+      loan.nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
     await loan.save();
+
+    // Create transaction record
+    await Transaction.create({
+      user: req.user.id,
+      type: 'loan_payment',
+      amount,
+      paymentMethod,
+      status: 'completed',
+      description: `Loan payment for loan #${loan.loanNumber}`,
+      loan: loan._id,
+      balanceAfter: loan.remainingBalance
+    });
 
     // Create loan payment notification
     console.log('Creating loan payment notification...');
     try {
       const notification = await NotificationService.createNotification({
         type: 'loan_payment',
-        message: `Your loan payment of UGX${amount} has been received and is being processed. We will notify you once it's confirmed.`,
+        message: `Your loan payment of UGX${amount.toLocaleString()} has been received and processed successfully.${loan.remainingBalance <= 0 ? ' Your loan is now cleared!' : ` Remaining balance: UGX${loan.remainingBalance.toLocaleString()}`}`,
         user: req.user.id,
         relatedTo: loan._id,
         onModel: 'Loan',
@@ -292,7 +419,8 @@ exports.makeLoanPayment = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: loan
+      data: loan,
+      message: loan.remainingBalance <= 0 ? 'Loan fully paid and cleared!' : 'Payment processed successfully'
     });
   } catch (err) {
     console.error('Error making loan payment:', err);
@@ -301,4 +429,5 @@ exports.makeLoanPayment = async (req, res) => {
       error: err.message || 'Server error'
     });
   }
-}; 
+};
+

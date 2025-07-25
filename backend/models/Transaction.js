@@ -27,8 +27,7 @@ const TransactionSchema = new mongoose.Schema({
     default: 'pending'
   },
   reference: {
-    type: String,
-    unique: true
+    type: String
   },
   loan: {
     type: mongoose.Schema.Types.ObjectId,
@@ -45,12 +44,11 @@ const TransactionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'mtn_mobile_money'],
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'savings_deduction'],
     required: true
   },
   receiptNumber: {
-    type: String,
-    unique: true
+    type: String
   },
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -71,17 +69,21 @@ const TransactionSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt timestamp before saving
-TransactionSchema.pre('save', function(next) {
+TransactionSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
 // Generate receipt number before saving
-TransactionSchema.pre('save', async function(next) {
+TransactionSchema.pre('save', async function (next) {
   if (this.isNew) {
     const count = await this.constructor.countDocuments();
     this.reference = `TXN${String(count + 1).padStart(8, '0')}`;
-    this.receiptNumber = `RCPT${String(count + 1).padStart(8, '0')}`;
+
+    // Only generate receiptNumber if not already set
+    if (!this.receiptNumber) {
+      this.receiptNumber = `RCPT${String(count + 1).padStart(8, '0')}`;
+    }
   }
   next();
 });

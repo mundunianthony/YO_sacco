@@ -36,15 +36,17 @@ export const NotificationBell = () => {
     try {
       const response = await notificationApi.getNotifications();
       console.log('Notifications Response:', response.data);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
-      if (response.data.success) {
-        console.log('Setting notifications:', response.data.data);
-        setNotifications(response.data.data.notifications || []);
+      let notifications: Notification[] = [];
+      if (response.data.success && response.data.data?.notifications) {
+        notifications = response.data.data.notifications;
+      } else if (response.data.status === 'success' && response.data.data?.notifications) {
+        notifications = response.data.data.notifications;
+      } else if (Array.isArray(response.data.notifications)) {
+        notifications = response.data.notifications;
       } else {
-        console.error('Response indicates failure:', response.data);
+        console.error('Unexpected notifications response shape:', response.data);
       }
+      setNotifications(notifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       if (axios.isAxiosError(error)) {
@@ -197,6 +199,9 @@ export const NotificationBell = () => {
             >
               <div className="flex items-start justify-between w-full">
                 <div className={`text-sm ${!notification.read ? 'font-medium' : ''}`}>
+                  {notification.type === 'admin_reminder' && (
+                    <span className="inline-block mr-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-800 text-xs font-semibold">REMINDER</span>
+                  )}
                   {notification.message}
                 </div>
                 {notification.read && (

@@ -1,4 +1,4 @@
-import { AdminNotifications } from '@/components/admin/AdminNotifications';
+import { NotificationBell } from '@/components/NotificationBell';
 import { MainNav } from '@/components/layout/MainNav';
 // import { UserNav } from '@/components/layout/UserNav';
 import { AppSidebar } from '@/components/AppSidebar';
@@ -12,7 +12,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <div className="container flex h-14 items-center">
           <MainNav />
           <div className="flex flex-1 items-center justify-end space-x-4">
-            <AdminNotifications />
+            <NotificationBell />
             {/* <UserNav /> */}
           </div>
         </div>

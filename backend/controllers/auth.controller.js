@@ -7,9 +7,9 @@ const { validationResult } = require('express-validator');
 exports.register = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
-      error: errors.array()[0].msg 
+      error: errors.array()[0].msg
     });
   }
 
@@ -19,11 +19,14 @@ exports.register = async (req, res) => {
     // Check if user exists
     let user = await User.findOne({ email });
     if (user) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Email already registered' 
+        error: 'Email already registered'
       });
     }
+
+    // Clean phone number - remove all non-digit characters
+    const cleanedPhoneNumber = phoneNumber.replace(/\D/g, '');
 
     // Create user
     user = await User.create({
@@ -31,7 +34,7 @@ exports.register = async (req, res) => {
       lastName,
       email,
       password,
-      phoneNumber,
+      phoneNumber: cleanedPhoneNumber,
       address,
       role: 'member' // Default role for regular registrations
     });
@@ -52,9 +55,9 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
-      error: errors.array()[0].msg 
+      error: errors.array()[0].msg
     });
   }
 
@@ -64,18 +67,18 @@ exports.login = async (req, res) => {
     // Check for user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'Invalid credentials' 
+        error: 'Invalid credentials'
       });
     }
 
     // Check if password matches
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'Invalid credentials' 
+        error: 'Invalid credentials'
       });
     }
 

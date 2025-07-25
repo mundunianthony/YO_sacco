@@ -1,8 +1,7 @@
 const NotificationService = require('../services/notificationService');
-const { catchAsync } = require('../utils/errorHandler');
 
 // Member endpoints
-exports.getNotifications = catchAsync(async (req, res) => {
+exports.getNotifications = async (req, res) => {
   console.log('=== GET NOTIFICATIONS REQUEST ===');
   console.log('User ID:', req.user._id);
   console.log('User object:', {
@@ -12,19 +11,19 @@ exports.getNotifications = catchAsync(async (req, res) => {
   });
 
   const { page = 1, limit = 20, category, priority, unreadOnly } = req.query;
-  
+
   try {
     // Build query based on filters
     const query = { user: req.user._id };
-    
+
     if (category) {
       query.category = category;
     }
-    
+
     if (priority) {
       query.priority = priority;
     }
-    
+
     if (unreadOnly === 'true') {
       query.read = false;
     }
@@ -61,9 +60,9 @@ exports.getNotifications = catchAsync(async (req, res) => {
       message: 'Failed to fetch notifications'
     });
   }
-});
+};
 
-exports.markAsRead = catchAsync(async (req, res) => {
+exports.markAsRead = async (req, res) => {
   console.log('=== MARK NOTIFICATION AS READ ===');
   console.log('Notification ID:', req.params.id);
   console.log('User ID:', req.user._id);
@@ -94,9 +93,9 @@ exports.markAsRead = catchAsync(async (req, res) => {
       message: 'Failed to mark notification as read'
     });
   }
-});
+};
 
-exports.markAllAsRead = catchAsync(async (req, res) => {
+exports.markAllAsRead = async (req, res) => {
   console.log('=== MARK ALL NOTIFICATIONS AS READ ===');
   console.log('User ID:', req.user._id);
 
@@ -115,9 +114,9 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
       message: 'Failed to mark all notifications as read'
     });
   }
-});
+};
 
-exports.getUnreadCount = catchAsync(async (req, res) => {
+exports.getUnreadCount = async (req, res) => {
   console.log('=== GET UNREAD COUNT ===');
   console.log('User ID:', req.user._id);
 
@@ -136,27 +135,27 @@ exports.getUnreadCount = catchAsync(async (req, res) => {
       message: 'Failed to get unread count'
     });
   }
-});
+};
 
 // Admin endpoints
-exports.getAdminNotifications = catchAsync(async (req, res) => {
+exports.getAdminNotifications = async (req, res) => {
   console.log('=== GET ADMIN NOTIFICATIONS ===');
   console.log('Admin ID:', req.user._id);
 
   const { page = 1, limit = 20, category, priority, unreadOnly } = req.query;
-  
+
   try {
     // Build query based on filters
     const query = { user: req.user._id };
-    
+
     if (category) {
       query.category = category;
     }
-    
+
     if (priority) {
       query.priority = priority;
     }
-    
+
     if (unreadOnly === 'true') {
       query.read = false;
     }
@@ -187,9 +186,9 @@ exports.getAdminNotifications = catchAsync(async (req, res) => {
       message: 'Failed to fetch admin notifications'
     });
   }
-});
+};
 
-exports.getAdminUnreadCount = catchAsync(async (req, res) => {
+exports.getAdminUnreadCount = async (req, res) => {
   console.log('=== GET ADMIN UNREAD COUNT ===');
   console.log('Admin ID:', req.user._id);
 
@@ -208,9 +207,9 @@ exports.getAdminUnreadCount = catchAsync(async (req, res) => {
       message: 'Failed to get admin unread count'
     });
   }
-});
+};
 
-exports.markAdminNotificationAsRead = catchAsync(async (req, res) => {
+exports.markAdminNotificationAsRead = async (req, res) => {
   console.log('=== MARK ADMIN NOTIFICATION AS READ ===');
   console.log('Notification ID:', req.params.id);
   console.log('Admin ID:', req.user._id);
@@ -241,9 +240,9 @@ exports.markAdminNotificationAsRead = catchAsync(async (req, res) => {
       message: 'Failed to mark admin notification as read'
     });
   }
-});
+};
 
-exports.markAllAdminNotificationsAsRead = catchAsync(async (req, res) => {
+exports.markAllAdminNotificationsAsRead = async (req, res) => {
   console.log('=== MARK ALL ADMIN NOTIFICATIONS AS READ ===');
   console.log('Admin ID:', req.user._id);
 
@@ -262,15 +261,15 @@ exports.markAllAdminNotificationsAsRead = catchAsync(async (req, res) => {
       message: 'Failed to mark all admin notifications as read'
     });
   }
-});
+};
 
-exports.createSystemNotification = catchAsync(async (req, res) => {
+exports.createSystemNotification = async (req, res) => {
   console.log('=== CREATE SYSTEM NOTIFICATION ===');
   console.log('Admin ID:', req.user._id);
   console.log('Notification data:', req.body);
 
   const { message, type, priority = 'medium', category = 'system' } = req.body;
-  
+
   try {
     const notification = await NotificationService.createNotification({
       type,
@@ -292,15 +291,15 @@ exports.createSystemNotification = catchAsync(async (req, res) => {
       message: 'Failed to create system notification'
     });
   }
-});
+};
 
-exports.createMaintenanceNotification = catchAsync(async (req, res) => {
+exports.createMaintenanceNotification = async (req, res) => {
   console.log('=== CREATE MAINTENANCE NOTIFICATION ===');
   console.log('Admin ID:', req.user._id);
   console.log('Maintenance details:', req.body);
 
   const { details } = req.body;
-  
+
   try {
     const notification = await NotificationService.notifyMaintenance(
       req.user._id,
@@ -319,15 +318,15 @@ exports.createMaintenanceNotification = catchAsync(async (req, res) => {
       message: 'Failed to create maintenance notification'
     });
   }
-});
+};
 
-exports.createBroadcastNotification = catchAsync(async (req, res) => {
+exports.createBroadcastNotification = async (req, res) => {
   console.log('=== CREATE BROADCAST NOTIFICATION ===');
   console.log('Admin ID:', req.user._id);
   console.log('Broadcast data:', req.body);
 
   const { message, type, priority = 'medium', category = 'system' } = req.body;
-  
+
   try {
     const notifications = await NotificationService.notifyAllAdmins({
       type,
@@ -348,4 +347,4 @@ exports.createBroadcastNotification = catchAsync(async (req, res) => {
       message: 'Failed to create broadcast notification'
     });
   }
-}); 
+}; 

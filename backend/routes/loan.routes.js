@@ -4,7 +4,8 @@ const {
   applyForLoan,
   getMyLoans,
   getAllLoans,
-  updateLoanStatus
+  updateLoanStatus,
+  makeLoanPayment
 } = require('../controllers/loan.controller');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -34,3 +35,15 @@ router.get('/', protect, authorize('admin'), getAllLoans);
 router.put('/:id', protect, authorize('admin'), updateLoanStatus);
 
 module.exports = router; 
+
+router.post(
+  '/:id/payment',
+  protect,
+  [
+    check('amount', 'Payment amount is required').isNumeric(),
+    check('amount', 'Payment amount must be positive').isFloat({ min: 0.01 }),
+    check('paymentMethod', 'Payment method is required').not().isEmpty()
+  ],
+  makeLoanPayment
+);
+

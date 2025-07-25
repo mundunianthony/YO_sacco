@@ -62,15 +62,23 @@ export const memberApi = {
     purpose: string;
     term: number;
     collateral?: string;
-    guarantors?: Array<{
-      name: string;
-      phone: string;
-      address: string;
-      relationship: string;
-    }>;
+    guarantors?: string[];
   }) => api.post('/members/loans', data),
-  makeLoanPayment: (loanId: string, data: { amount: number; paymentMethod: string }) =>
+  makeLoanPayment: (loanId: string, data: { amount: number }) =>
     api.post(`/members/loans/${loanId}/payment`, data),
+
+  getAllMembers: () => api.get('/members/all'),
+
+  // Interest
+  getInterestSummary: (params?: { startDate?: string; endDate?: string }) =>
+    api.get('/members/interest/summary', { params }),
+  getInterestHistory: (params?: {
+    page?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string
+  }) => api.get('/members/interest/history', { params }),
+  getInterestProjection: () => api.get('/members/interest/projection'),
 };
 
 // Admin API
@@ -78,13 +86,13 @@ export const adminApi = {
   // Users
   getUsers: () => api.get('/admin/users'),
   getUserById: (id: string) => api.get(`/admin/users/${id}`),
-  updateUserStatus: (id: string, data: { status: string }) => 
+  updateUserStatus: (id: string, data: { status: string }) =>
     api.put(`/admin/users/${id}/status`, data),
 
   // Loans
   getLoans: () => api.get('/admin/loans'),
   getLoanById: (id: string) => api.get(`/admin/loans/${id}`),
-  updateLoanStatus: (id: string, data: { status: string; rejectionReason?: string }) => 
+  updateLoanStatus: (id: string, data: { status: string; rejectionReason?: string }) =>
     api.put(`/admin/loans/${id}/status`, data),
   getLoanStats: () => api.get('/admin/loans/stats'),
 
@@ -93,8 +101,41 @@ export const adminApi = {
   getUserStats: () => api.get('/admin/users/stats'),
 
   // Transactions
-  getTransactions: (params?: { type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) => 
+  getTransactions: (params?: { type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
     api.get('/admin/transactions', { params }),
+  getMemberTransactions: (memberId: string) => api.get(`/admin/users/${memberId}/transactions`),
+
+  // Reports
+  generateMemberReport: (memberId: string) => api.get(`/admin/users/${memberId}/report`),
+  generateMonthlyReport: (year: number, month: number) => api.get(`/admin/reports/monthly`, { params: { year, month } }),
+
+  // Withdrawals
+  getPendingWithdrawals: () => api.get('/admin/withdrawals/pending'),
+  approveWithdrawal: (id: string, data: { status: 'approved' | 'rejected'; rejectionReason?: string }) =>
+    api.put(`/admin/withdrawals/${id}/approve`, data),
+
+  // Notifications
+  getNotifications: () => api.get('/notifications'),
+  markNotificationAsRead: (id: string) => api.put(`/notifications/${id}/read`),
+  markAllNotificationsAsRead: () => api.put('/notifications/read-all'),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  sendReminder: (memberId: string, data: { message: string }) =>
+    api.post(`/admin/users/${memberId}/reminder`, data),
+
+  // Interest Management
+  getInterestStats: () => api.get('/admin/interest/stats'),
+  calculateInterest: (data: {
+    fromDate: string;
+    toDate: string;
+    interestRate?: number
+  }) => api.post('/admin/interest/calculate', data),
+  getInterestHistory: (params?: {
+    page?: number;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+    userId?: string
+  }) => api.get('/admin/interest/history', { params }),
 };
 
 // Notification API
