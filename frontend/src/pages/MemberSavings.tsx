@@ -186,6 +186,37 @@ const MemberSavings = () => {
         return;
       }
 
+      // Validate card number length
+      if (cardDetails.cardNumber.replace(/\s+/g, "").length > 14) {
+        toast({
+          title: "Invalid Card Number",
+          description: "Card number must not exceed 14 digits",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate expiry date
+      const [monthStr, yearStr] = cardDetails.expiryDate.split("/");
+      const expMonth = parseInt(monthStr, 10);
+      const expYear = 2000 + parseInt(yearStr, 10);
+      const today = new Date();
+      if (
+        isNaN(expMonth) ||
+        isNaN(expYear) ||
+        expMonth < 1 ||
+        expMonth > 12 ||
+        expYear < today.getFullYear() ||
+        (expYear === today.getFullYear() && expMonth < today.getMonth() + 1)
+      ) {
+        toast({
+          title: "Invalid Expiry Date",
+          description: "Expiry date must be in the future",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await memberApi.makeDeposit({
         amount,
         paymentMethod: "card",
