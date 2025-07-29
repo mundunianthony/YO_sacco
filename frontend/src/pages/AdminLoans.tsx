@@ -257,6 +257,13 @@ const AdminLoans = () => {
     if (!loans || !Array.isArray(loans)) {
       return [];
     }
+    // Dynamically determine ranges
+    const amounts = (allLoans || []).map(l => l.amount).sort((a, b) => a - b);
+    let smallMax = 0, mediumMax = 0;
+    if (amounts.length > 0) {
+      smallMax = amounts[Math.floor(amounts.length * 0.33)] || 0;
+      mediumMax = amounts[Math.floor(amounts.length * 0.66)] || 0;
+    }
     return loans.filter((loan) => {
       const matchesSearch = searchTerm === "" || 
         loan.user?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -264,12 +271,15 @@ const AdminLoans = () => {
         loan.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.loanNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.purpose?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesAmount = filterAmount === "all" || 
-        (filterAmount === "small" && (loan.amount || 0) < 100000) ||
-        (filterAmount === "medium" && (loan.amount || 0) >= 100000 && (loan.amount || 0) < 500000) ||
-        (filterAmount === "large" && (loan.amount || 0) >= 500000);
-      
+
+      let matchesAmount = filterAmount === "all";
+      if (filterAmount === "small") {
+        matchesAmount = (loan.amount || 0) <= smallMax;
+      } else if (filterAmount === "medium") {
+        matchesAmount = (loan.amount || 0) > smallMax && (loan.amount || 0) <= mediumMax;
+      } else if (filterAmount === "large") {
+        matchesAmount = (loan.amount || 0) > mediumMax;
+      }
       return matchesSearch && matchesAmount;
     });
   };
@@ -282,10 +292,17 @@ const AdminLoans = () => {
     { name: 'Paid/Cleared', value: paidLoans.length },
   ];
 
+  // Use the same dynamic ranges for chart
+  const amounts = (allLoans || []).map(l => l.amount).sort((a, b) => a - b);
+  let smallMax = 0, mediumMax = 0;
+  if (amounts.length > 0) {
+    smallMax = amounts[Math.floor(amounts.length * 0.33)] || 0;
+    mediumMax = amounts[Math.floor(amounts.length * 0.66)] || 0;
+  }
   const loanAmountData = [
-    { range: 'Small (<100K)', count: (allLoans || []).filter(l => l.amount < 100000).length },
-    { range: 'Medium (100K-500K)', count: (allLoans || []).filter(l => l.amount >= 100000 && l.amount < 500000).length },
-    { range: 'Large (>500K)', count: (allLoans || []).filter(l => l.amount >= 500000).length },
+    { range: `Small (≤ UGX${smallMax.toLocaleString()})`, count: (allLoans || []).filter(l => l.amount <= smallMax).length },
+    { range: `Medium (UGX${(smallMax+1).toLocaleString()} - UGX${mediumMax.toLocaleString()})`, count: (allLoans || []).filter(l => l.amount > smallMax && l.amount <= mediumMax).length },
+    { range: `Large (> UGX${mediumMax.toLocaleString()})`, count: (allLoans || []).filter(l => l.amount > mediumMax).length },
   ];
 
   if (loading) {
@@ -441,9 +458,9 @@ const AdminLoans = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All amounts</SelectItem>
-                    <SelectItem value="small">Small (&lt; 100K)</SelectItem>
-                    <SelectItem value="medium">Medium (100K - 500K)</SelectItem>
-                    <SelectItem value="large">Large (&gt; 500K)</SelectItem>
+                    <SelectItem value="small">{`Small (≤ UGX${smallMax.toLocaleString()})`}</SelectItem>
+                    <SelectItem value="medium">{`Medium (UGX${(smallMax+1).toLocaleString()} - UGX${mediumMax.toLocaleString()})`}</SelectItem>
+                    <SelectItem value="large">{`Large (> UGX${mediumMax.toLocaleString()})`}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
