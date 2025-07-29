@@ -62,8 +62,11 @@ exports.applyForLoan = async (req, res) => {
     }
 
     // Create loan application
-    const interestRate = 10; // 10% interest rate
-    const totalPayment = amount + (amount * interestRate / 100);
+    const interestRate = 20; // 20% annual interest rate (for display)
+    // Calculate total interest as 20% of principal amount
+    const totalInterestRate = 0.20; // 20% total interest
+    const totalInterest = amount * totalInterestRate;
+    const totalPayment = amount + totalInterest;
     const monthlyPayment = totalPayment / term;
 
     const loan = await Loan.create({

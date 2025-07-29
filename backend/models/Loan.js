@@ -65,7 +65,7 @@ const LoanSchema = new mongoose.Schema({
   interestRate: {
     type: Number,
     required: true,
-    default: 10 // 10% interest rate
+    default: 20 // 20% interest rate
   },
   term: {
     type: Number,
