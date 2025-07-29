@@ -68,6 +68,7 @@ const AdminLoans = () => {
   const [paidLoans, setPaidLoans] = useState<Loan[]>([]);
   const [loanStats, setLoanStats] = useState<LoanStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [isLoanDetailsOpen, setIsLoanDetailsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,19 +85,28 @@ const AdminLoans = () => {
   const fetchLoans = async () => {
     try {
       const response = await adminApi.getLoans();
-      const loans = response.data.data;
+      const loans = Array.isArray(response?.data?.data) ? response.data.data : [];
       setAllLoans(loans);
-      
       setPendingLoans(loans.filter((loan: Loan) => loan.status === 'pending'));
       setActiveLoans(loans.filter((loan: Loan) => loan.status === 'active'));
       setApprovedLoans(loans.filter((loan: Loan) => loan.status === 'approved'));
       setPaidLoans(loans.filter((loan: Loan) => loan.status === 'paid' || loan.status === 'cleared'));
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load loans",
-        variant: "destructive",
-      });
+      setForbidden(false);
+    } catch (error: any) {
+      setAllLoans([]);
+      setPendingLoans([]);
+      setActiveLoans([]);
+      setApprovedLoans([]);
+      setPaidLoans([]);
+      if (error?.response?.status === 403) {
+        setForbidden(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load loans",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -244,11 +254,14 @@ const AdminLoans = () => {
   };
 
   const filterLoans = (loans: Loan[]) => {
+    if (!loans || !Array.isArray(loans)) {
+      return [];
+    }
     return loans.filter((loan) => {
       const matchesSearch = searchTerm === "" || 
-        loan.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        loan.user?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        loan.user?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        loan.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.loanNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loan.purpose?.toLowerCase().includes(searchTerm.toLowerCase());
       
@@ -270,9 +283,9 @@ const AdminLoans = () => {
   ];
 
   const loanAmountData = [
-    { range: 'Small (<100K)', count: allLoans.filter(l => l.amount < 100000).length },
-    { range: 'Medium (100K-500K)', count: allLoans.filter(l => l.amount >= 100000 && l.amount < 500000).length },
-    { range: 'Large (>500K)', count: allLoans.filter(l => l.amount >= 500000).length },
+    { range: 'Small (<100K)', count: (allLoans || []).filter(l => l.amount < 100000).length },
+    { range: 'Medium (100K-500K)', count: (allLoans || []).filter(l => l.amount >= 100000 && l.amount < 500000).length },
+    { range: 'Large (>500K)', count: (allLoans || []).filter(l => l.amount >= 500000).length },
   ];
 
   if (loading) {
@@ -280,6 +293,18 @@ const AdminLoans = () => {
       <Layout>
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (forbidden) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="text-2xl font-bold text-red-600 mb-4">Access Denied</div>
+          <div className="text-lg text-muted-foreground mb-2">You are not authorized to view this page.</div>
+          <div className="text-sm text-gray-500">Please log in as an admin to access loan management features.</div>
         </div>
       </Layout>
     );

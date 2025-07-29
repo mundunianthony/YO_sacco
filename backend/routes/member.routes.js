@@ -253,8 +253,10 @@ router.post('/loans', authenticate, [
     }
 
     // Calculate loan details
-    const interestRate = 10; // 10% interest rate
-    const totalInterest = (amount * interestRate * term) / 100;
+    const interestRate = 10; // 10% annual interest rate (for display)
+    // Calculate total interest as 20% of principal amount
+    const totalInterestRate = 0.20; // 20% total interest
+    const totalInterest = amount * totalInterestRate;
     const totalPayment = amount + totalInterest;
     const monthlyPayment = totalPayment / term;
 
