@@ -18,7 +18,6 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 // Log environment variables (excluding sensitive data)
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Port:', process.env.PORT);
-console.log('MongoDB URI:', process.env.MONGO_URI ? 'Configured' : 'Not configured');
 
 // Connect to database
 connectDB().catch(err => {
@@ -99,7 +98,6 @@ const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  console.log(`MongoDB URI: ${process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sacco_db'}`);
 });
 
 // Handle unhandled promise rejections

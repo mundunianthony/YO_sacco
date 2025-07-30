@@ -30,7 +30,7 @@ try {
         console.log('❌ .env file does not exist at:', envPath);
         console.log('\nPlease create a .env file with the following contents:');
         console.log('-------------------');
-        console.log('MONGO_URI=mongodb+srv://muronhumfix:Muron%40123@cluster0.8kovk.mongodb.net/sacco_db?retryWrites=true&w=majority');
+        console.log('MONGO_URI=your_mongodb_connection_string_here');
         console.log('PORT=5000');
         console.log('NODE_ENV=development');
         console.log('-------------------');
